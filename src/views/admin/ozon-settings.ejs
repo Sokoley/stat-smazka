@@ -1,0 +1,112 @@
+<%- include('../layouts/main', { title, body: `
+  <div class="max-w-4xl">
+    <div class="mb-6">
+      <h2 class="text-2xl font-bold text-gray-900 dark:text-white">Настройки интеграций</h2>
+      <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">Управление API ключами и интеграциями</p>
+    </div>
+
+    ${success ? `
+      <div class="bg-green-50 dark:bg-green-900/30 border border-green-200 dark:border-green-800 rounded-lg p-4 mb-6">
+        <p class="text-green-600 dark:text-green-400">${success}</p>
+      </div>
+    ` : ''}
+
+    ${error ? `
+      <div class="bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 rounded-lg p-4 mb-6">
+        <p class="text-red-600 dark:text-red-400">${error}</p>
+      </div>
+    ` : ''}
+
+    <!-- Existing accounts -->
+    <div class="card mb-6">
+      <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Аккаунты OZON</h3>
+
+      ${accounts.length === 0 ? `
+        <p class="text-gray-500 dark:text-gray-400 text-sm">Нет добавленных аккаунтов</p>
+      ` : `
+        <div class="overflow-x-auto">
+          <table class="w-full text-sm">
+            <thead class="text-xs text-gray-700 uppercase bg-gray-50 dark:bg-gray-700 dark:text-gray-400">
+              <tr>
+                <th class="px-4 py-3 text-left">Название</th>
+                <th class="px-4 py-3 text-left">Client ID</th>
+                <th class="px-4 py-3 text-center">Статус</th>
+                <th class="px-4 py-3 text-right">Действия</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
+              ${accounts.map(acc => `
+                <tr class="bg-white dark:bg-gray-800">
+                  <td class="px-4 py-3 font-medium text-gray-900 dark:text-white">${acc.name}</td>
+                  <td class="px-4 py-3 text-gray-700 dark:text-gray-300">${acc.client_id}</td>
+                  <td class="px-4 py-3 text-center">
+                    ${acc.is_active
+                      ? '<span class="px-2 py-1 text-xs font-medium rounded-full bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400">Активен</span>'
+                      : '<span class="px-2 py-1 text-xs font-medium rounded-full bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-400">Отключен</span>'
+                    }
+                  </td>
+                  <td class="px-4 py-3 text-right">
+                    <form action="/admin/settings/ozon/account/${acc.id}/toggle" method="POST" class="inline">
+                      <button type="submit" class="text-sm text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 mr-3">
+                        ${acc.is_active ? 'Отключить' : 'Включить'}
+                      </button>
+                    </form>
+                    <form action="/admin/settings/ozon/account/${acc.id}/delete" method="POST" class="inline" onsubmit="return confirm('Удалить аккаунт ${acc.name}?')">
+                      <button type="submit" class="text-sm text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300">
+                        Удалить
+                      </button>
+                    </form>
+                  </td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        </div>
+      `}
+    </div>
+
+    <!-- Add new account -->
+    <div class="card">
+      <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Добавить аккаунт</h3>
+
+      <form action="/admin/settings/ozon/account" method="POST" class="space-y-4">
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div>
+            <label for="name" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Название</label>
+            <input type="text" id="name" name="name" class="input-field" placeholder="Например: ВМПАВТО" required>
+          </div>
+          <div>
+            <label for="client_id" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Client ID</label>
+            <input type="text" id="client_id" name="client_id" class="input-field" placeholder="123456" required>
+          </div>
+          <div>
+            <label for="api_key" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">API Key</label>
+            <input type="password" id="api_key" name="api_key" class="input-field" placeholder="API ключ" required>
+          </div>
+        </div>
+
+        <div class="pt-2">
+          <button type="submit" class="btn-primary">Добавить аккаунт</button>
+        </div>
+      </form>
+    </div>
+
+    <!-- DeepSeek API Settings -->
+    <div class="card mt-6">
+      <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">DeepSeek API</h3>
+      <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">API ключ для анализа отзывов с помощью ИИ</p>
+
+      <form action="/admin/settings/ozon/deepseek" method="POST" class="space-y-4">
+        <div>
+          <label for="deepseek_api_key" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">API Key</label>
+          <input type="password" id="deepseek_api_key" name="api_key" class="input-field" placeholder="sk-..." value="${deepseekApiKey || ''}">
+          <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">Получить ключ можно на <a href="https://platform.deepseek.com/" target="_blank" class="text-blue-600 hover:text-blue-800 dark:text-blue-400">platform.deepseek.com</a></p>
+        </div>
+
+        <div class="pt-2">
+          <button type="submit" class="btn-primary">Сохранить ключ</button>
+        </div>
+      </form>
+    </div>
+  </div>
+` }) %>

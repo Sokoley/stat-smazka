@@ -1,0 +1,299 @@
+<%- include('../layouts/main', { title, body: `
+  <div class="space-y-6">
+    <div class="flex items-center justify-between flex-wrap gap-4">
+      <h2 class="text-2xl font-bold text-gray-900 dark:text-white">Соинвест</h2>
+
+      <div class="flex items-center gap-4 flex-wrap">
+        ${accounts && accounts.length > 0 ? `
+          <div class="inline-flex gap-1 p-1 bg-gray-100 dark:bg-gray-700 rounded-lg">
+            ${accounts.map(acc => `
+              <a href="/ozon/coinvest?account=${acc.id}&view=${viewMode || 'days'}${dateFrom ? '&date_from=' + dateFrom : ''}${dateTo ? '&date_to=' + dateTo : ''}"
+                 class="px-4 py-2 text-sm font-semibold rounded-md transition-all ${acc.id === selectedAccountId
+                   ? 'bg-purple-600 text-white shadow-sm'
+                   : 'bg-transparent text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'}">
+                ${acc.name}
+              </a>
+            `).join('')}
+          </div>
+        ` : ''}
+
+        <div class="inline-flex gap-1 p-1 bg-gray-100 dark:bg-gray-700 rounded-lg">
+          <a href="/ozon/coinvest?view=days${selectedAccountId ? '&account=' + selectedAccountId : ''}"
+             class="px-4 py-2 text-sm font-semibold rounded-md transition-all ${viewMode === 'days'
+               ? 'bg-blue-600 text-white shadow-sm'
+               : 'bg-transparent text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'}">
+            Дни
+          </a>
+          <a href="/ozon/coinvest?view=weeks${selectedAccountId ? '&account=' + selectedAccountId : ''}"
+             class="px-4 py-2 text-sm font-semibold rounded-md transition-all ${viewMode === 'weeks'
+               ? 'bg-blue-600 text-white shadow-sm'
+               : 'bg-transparent text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'}">
+            Недели
+          </a>
+          <a href="/ozon/coinvest?view=months${selectedAccountId ? '&account=' + selectedAccountId : ''}"
+             class="px-4 py-2 text-sm font-semibold rounded-md transition-all ${viewMode === 'months'
+               ? 'bg-blue-600 text-white shadow-sm'
+               : 'bg-transparent text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'}">
+            Месяцы
+          </a>
+        </div>
+
+        <form action="/ozon/coinvest" method="GET" class="flex items-center gap-3">
+          <input type="hidden" name="view" value="${viewMode || 'days'}">
+          <input type="hidden" name="account" value="${selectedAccountId || ''}">
+          <div class="flex items-center gap-2">
+            <label class="text-sm text-gray-600 dark:text-gray-400">С</label>
+            <input type="date" name="date_from" value="${dateFrom || ''}" class="input-field !w-auto !py-1.5 text-sm">
+          </div>
+          <div class="flex items-center gap-2">
+            <label class="text-sm text-gray-600 dark:text-gray-400">По</label>
+            <input type="date" name="date_to" value="${dateTo || ''}" class="input-field !w-auto !py-1.5 text-sm">
+          </div>
+          <button type="submit" class="btn-primary !py-1.5 text-sm">Показать</button>
+        </form>
+      </div>
+    </div>
+
+    ${error ? `
+      <div class="bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 rounded-lg p-4">
+        <p class="text-red-600 dark:text-red-400">${error}</p>
+        ${error.includes('не настроен') || error.includes('Нет активных') || error.includes('не найден') ? `
+          <a href="/admin/settings/ozon" class="inline-block mt-2 text-sm text-blue-600 dark:text-blue-400 hover:underline">Перейти к настройкам</a>
+        ` : ''}
+      </div>
+    ` : ''}
+
+    ${chartData && totals ? `
+      <!-- Totals -->
+      <div class="flex flex-wrap gap-4">
+        <div class="card !p-4 inline-block">
+          <p class="text-xs text-gray-500 dark:text-gray-400">Продажи</p>
+          <p class="text-lg font-bold text-blue-600 dark:text-blue-400">${formatCurrency({ value: totals.sales, currency_code: 'RUB' })}</p>
+        </div>
+        <div class="card !p-4 inline-block">
+          <p class="text-xs text-gray-500 dark:text-gray-400">Затраты</p>
+          <p class="text-lg font-bold text-red-600 dark:text-red-400">${formatCurrency({ value: totals.expenses, currency_code: 'RUB' })}</p>
+          <p class="text-xs text-gray-400 dark:text-gray-500">${totals.sales > 0 ? ((totals.expenses / totals.sales) * 100).toFixed(1) : 0}% от продаж</p>
+        </div>
+        <div class="card !p-4 inline-block">
+          <p class="text-xs text-gray-500 dark:text-gray-400">Соинвест</p>
+          <p class="text-lg font-bold text-green-600 dark:text-green-400">${formatCurrency({ value: totals.coinvest, currency_code: 'RUB' })}</p>
+          <p class="text-xs text-gray-400 dark:text-gray-500">${totals.sales > 0 ? ((totals.coinvest / totals.sales) * 100).toFixed(1) : 0}% от продаж</p>
+        </div>
+      </div>
+
+      <!-- Chart -->
+      <div class="card">
+        <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Динамика ${viewMode === 'months' ? 'по месяцам' : viewMode === 'weeks' ? 'по неделям' : 'по дням'}</h3>
+        <div style="height: 500px;">
+          <canvas id="coinvestChart"></canvas>
+        </div>
+      </div>
+
+      <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2"></script>
+      <script>
+        document.addEventListener('DOMContentLoaded', function() {
+          const ctx = document.getElementById('coinvestChart');
+          if (!ctx) return;
+
+          const isDark = document.documentElement.classList.contains('dark');
+          const gridColor = isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)';
+          const textColor = isDark ? '#9CA3AF' : '#6B7280';
+
+          const chartData = ${JSON.stringify(chartData)};
+
+          Chart.register(ChartDataLabels);
+
+          // Calculate total expenses per day
+          const totalExpenses = chartData.expensesDetail.map(e =>
+            e.commission + e.advertising + e.logistics + e.fbo
+          );
+          const expensesPercent = totalExpenses.map((exp, i) =>
+            chartData.sales[i] > 0 ? ((exp / chartData.sales[i]) * 100).toFixed(1) : '0'
+          );
+
+          // Format number for display
+          function formatNum(value) {
+            if (value >= 1000000) return (value / 1000000).toFixed(1) + 'M';
+            if (value >= 1000) return (value / 1000).toFixed(0) + 'k';
+            return value.toFixed(0);
+          }
+
+          new Chart(ctx, {
+            type: 'bar',
+            data: {
+              labels: chartData.labels,
+              datasets: [
+                {
+                  label: 'Продажи',
+                  data: chartData.sales,
+                  backgroundColor: 'rgba(59, 130, 246, 0.85)',
+                  borderColor: '#3B82F6',
+                  borderWidth: 1,
+                  borderRadius: 4,
+                  stack: 'sales',
+                  datalabels: {
+                    display: true,
+                    align: 'end',
+                    anchor: 'end',
+                    color: isDark ? '#FFFFFF' : '#000000',
+                    font: { weight: 'bold', size: 10 },
+                    formatter: function(value) {
+                      return formatNum(value);
+                    },
+                  },
+                },
+                {
+                  label: 'Комиссия',
+                  data: chartData.expensesDetail.map(e => e.commission),
+                  backgroundColor: 'rgba(239, 68, 68, 0.85)',
+                  borderWidth: 0,
+                  stack: 'expenses',
+                  datalabels: { display: false },
+                },
+                {
+                  label: 'Реклама',
+                  data: chartData.expensesDetail.map(e => e.advertising),
+                  backgroundColor: 'rgba(249, 115, 22, 0.85)',
+                  borderWidth: 0,
+                  stack: 'expenses',
+                  datalabels: { display: false },
+                },
+                {
+                  label: 'Логистика',
+                  data: chartData.expensesDetail.map(e => e.logistics),
+                  backgroundColor: 'rgba(234, 179, 8, 0.85)',
+                  borderWidth: 0,
+                  stack: 'expenses',
+                  datalabels: { display: false },
+                },
+                {
+                  label: 'Агенты/FBO',
+                  data: chartData.expensesDetail.map(e => e.fbo),
+                  backgroundColor: 'rgba(161, 98, 7, 0.85)',
+                  borderWidth: 0,
+                  borderRadius: 4,
+                  stack: 'expenses',
+                  datalabels: {
+                    display: true,
+                    align: 'end',
+                    anchor: 'end',
+                    color: isDark ? '#FFFFFF' : '#000000',
+                    font: { weight: 'bold', size: 10 },
+                    formatter: function(value, context) {
+                      const total = totalExpenses[context.dataIndex];
+                      const pct = expensesPercent[context.dataIndex];
+                      return formatNum(total) + ' (' + pct + '%)';
+                    },
+                  },
+                },
+                {
+                  label: 'Соинвест',
+                  data: chartData.coinvest,
+                  backgroundColor: 'rgba(16, 185, 129, 0.85)',
+                  borderColor: '#10B981',
+                  borderWidth: 1,
+                  borderRadius: 4,
+                  stack: 'coinvest',
+                  datalabels: {
+                    display: true,
+                    align: 'end',
+                    anchor: 'end',
+                    color: isDark ? '#FFFFFF' : '#000000',
+                    font: { weight: 'bold', size: 10 },
+                    formatter: function(value, context) {
+                      const pct = chartData.percent[context.dataIndex];
+                      return formatNum(value) + ' (' + pct + '%)';
+                    },
+                  },
+                },
+              ],
+            },
+            options: {
+              responsive: true,
+              maintainAspectRatio: false,
+              interaction: {
+                intersect: false,
+                mode: 'index',
+              },
+              plugins: {
+                legend: {
+                  position: 'top',
+                  labels: {
+                    color: textColor,
+                    usePointStyle: true,
+                    padding: 20,
+                  },
+                },
+                tooltip: {
+                  backgroundColor: isDark ? '#1F2937' : '#FFFFFF',
+                  titleColor: isDark ? '#F9FAFB' : '#111827',
+                  bodyColor: isDark ? '#D1D5DB' : '#4B5563',
+                  borderColor: isDark ? '#374151' : '#E5E7EB',
+                  borderWidth: 1,
+                  padding: 12,
+                  callbacks: {
+                    label: function(context) {
+                      if (context.raw === 0) return null;
+                      const sales = chartData.sales[context.dataIndex];
+                      let label = context.dataset.label + ': ' + new Intl.NumberFormat('ru-RU', {
+                        style: 'currency',
+                        currency: 'RUB',
+                        maximumFractionDigits: 0,
+                      }).format(context.raw);
+                      // Add percentage for all except sales (datasetIndex 0)
+                      if (context.datasetIndex > 0 && sales > 0) {
+                        const pct = ((context.raw / sales) * 100).toFixed(1);
+                        label += ' (' + pct + '%)';
+                      }
+                      return label;
+                    },
+                    afterBody: function(tooltipItems) {
+                      const dataIndex = tooltipItems[0].dataIndex;
+                      const sales = chartData.sales[dataIndex];
+                      const totalExp = totalExpenses[dataIndex];
+                      if (sales > 0) {
+                        const expPct = ((totalExp / sales) * 100).toFixed(1);
+                        return ['', 'Всего затрат: ' + new Intl.NumberFormat('ru-RU', {
+                          style: 'currency',
+                          currency: 'RUB',
+                          maximumFractionDigits: 0,
+                        }).format(totalExp) + ' (' + expPct + '%)'];
+                      }
+                      return [];
+                    },
+                  },
+                },
+              },
+              scales: {
+                x: {
+                  grid: {
+                    display: false,
+                  },
+                  ticks: {
+                    color: textColor,
+                    maxRotation: 45,
+                    minRotation: 45,
+                  },
+                },
+                y: {
+                  grid: {
+                    color: gridColor,
+                  },
+                  ticks: {
+                    color: textColor,
+                    callback: function(value) {
+                      if (value >= 1000000) return (value / 1000000).toFixed(1) + 'M';
+                      if (value >= 1000) return (value / 1000).toFixed(0) + 'k';
+                      return value;
+                    },
+                  },
+                },
+              },
+            },
+          });
+        });
+      </script>
+    ` : ''}
+  </div>
+` }) %>

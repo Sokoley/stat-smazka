@@ -1,0 +1,1415 @@
+<%- include('../layouts/main', { title, body: `
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.0.0"></script>
+
+<style>
+    .promo-container { max-width: 100%; margin: 0 auto; background-color: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+    .dark .promo-container { background-color: #1f2937; }
+    .promo-title { text-align: center; color: #333; margin-bottom: 30px; }
+    .dark .promo-title { color: #f3f4f6; }
+    .controls { display: flex; justify-content: center; margin-bottom: 20px; gap: 10px; flex-wrap: wrap; padding: 15px; background-color: #f9f9f9; border-radius: 8px; }
+    .dark .controls { background-color: #374151; }
+    .controls select { padding: 10px 15px; border: 1px solid #ddd; border-radius: 4px; background-color: white; font-size: 14px; min-width: 120px; }
+    .dark .controls select { background-color: #4b5563; border-color: #6b7280; color: #f3f4f6; }
+    .view-toggle { display: flex; background-color: #f0f0f0; border-radius: 4px; overflow: hidden; }
+    .dark .view-toggle { background-color: #4b5563; }
+    .view-toggle button { padding: 10px 15px; border: none; background-color: transparent; cursor: pointer; font-size: 14px; transition: background-color 0.3s; color: #333; }
+    .dark .view-toggle button { color: #f3f4f6; }
+    .view-toggle button.active { background-color: #4CAF50; color: white; }
+    .view-toggle button:hover:not(.active) { background-color: #e0e0e0; }
+    .dark .view-toggle button:hover:not(.active) { background-color: #6b7280; }
+    .chart-container { position: relative; height: 600px; margin-bottom: 30px; }
+    .chart-container-small { position: relative; height: 400px; margin-bottom: 20px; }
+    .summary { margin-top: 20px; padding: 15px; background-color: #f9f9f9; border-radius: 4px; border-left: 4px solid #4CAF50; text-align: center; font-size: 18px; }
+    .dark .summary { background-color: #374151; color: #f3f4f6; }
+    .no-data-message { margin-top: 20px; padding: 15px; background-color: #ffebee; border-radius: 4px; border-left: 4px solid #f44336; text-align: center; font-size: 16px; display: none; }
+    .details-table { margin-top: 30px; width: 100%; border-collapse: collapse; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+    .details-table th { background-color: #dadada; color: #000; padding: 12px; text-align: left; cursor: pointer; position: relative; }
+    .dark .details-table th { background-color: #4b5563; color: #f3f4f6; }
+    .details-table th:hover { background-color: #b6b6b6ff; }
+    .dark .details-table th:hover { background-color: #6b7280; }
+    .details-table th::after { content: ''; display: inline-block; margin-left: 5px; width: 0; height: 0; border-left: 5px solid transparent; border-right: 5px solid transparent; border-top: 5px solid #fff; opacity: 0.5; }
+    .details-table th.asc::after { border-top: none; border-bottom: 5px solid #fff; }
+    .details-table th.desc::after { border-top: 5px solid #fff; border-bottom: none; }
+    .details-table td { padding: 10px; border-bottom: 1px solid #ddd; }
+    .dark .details-table td { border-bottom-color: #4b5563; color: #f3f4f6; }
+    .details-table tr:nth-child(even) { background-color: #f9f9f9; }
+    .dark .details-table tr:nth-child(even) { background-color: #374151; }
+    .details-table tr:hover { background-color: #f1f1f1; }
+    .dark .details-table tr:hover { background-color: #4b5563; }
+    .details-table th:nth-child(2), .details-table td:nth-child(2) { min-width: 120px; width: 15%; }
+    .details-table th:not(:nth-child(2)), .details-table td:not(:nth-child(2)) { min-width: 80px; }
+    .table-container { max-height: none; overflow: visible; }
+    #backToMain, #currentSection { margin-bottom: 15px; font-size: 16px; color: #666; padding: 10px; border: 1px solid #b9b9b9ff; border-radius: 5px; cursor: pointer; }
+    .dark #backToMain, .dark #currentSection { color: #d1d5db; border-color: #6b7280; }
+    #currentSection { color: rgba(255, 99, 132, 1); }
+    .breadcrumb { margin: 30px 0; font-size: 16px; color: #666; }
+    .dark .breadcrumb { color: #d1d5db; }
+    .breadcrumb a { color: #2196F3; text-decoration: none; cursor: pointer; }
+    .breadcrumb a:hover { text-decoration: underline; }
+    .selected { background-color: rgba(255, 99, 132, 0.7) !important; border-color: rgba(255, 99, 132, 1) !important; }
+    .cache-notice { color: #856404; padding: 10px; margin: 10px 0; border-radius: 4px; text-align: center; display: none; }
+    .error-message { background-color: #f8d7da; border: 1px solid #f5c6cb; color: #721c24; padding: 15px; margin: 20px 0; border-radius: 4px; text-align: center; display: none; }
+    .subsection-header { background-color: #e9f7fe; border-left: 4px solid #2196F3; padding: 15px; margin: 20px 0; border-radius: 4px; }
+    .dark .subsection-header { background-color: #1e3a5f; color: #f3f4f6; }
+    .month-filter-info { background-color: #e8f5e8; border-left: 4px solid #4CAF50; padding: 10px 15px; margin: 15px 0; border-radius: 4px; display: none; }
+    .dark .month-filter-info { background-color: #1a4d1a; color: #f3f4f6; }
+    .clear-filter { color: #2196F3; cursor: pointer; text-decoration: underline; margin-left: 10px; }
+    .clear-filter:hover { color: #0d8bf2; }
+    .category-control { display: none; }
+
+    .columns-dropdown-container { position: relative; display: inline-block; }
+    .columns-dropdown-btn { padding: 10px 15px; background-color: #2196F3; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 14px; min-width: 160px; text-align: left; position: relative; display: flex; justify-content: space-between; align-items: center; }
+    .columns-dropdown-btn:after { content: '\\25BC'; font-size: 10px; margin-left: 8px; }
+    .columns-dropdown-content { display: none; position: absolute; top: 100%; left: 0; background-color: white; min-width: 200px; max-width: 300px; max-height: 400px; overflow-y: auto; box-shadow: 0 8px 16px rgba(0,0,0,0.2); border-radius: 4px; z-index: 1000; padding: 10px; }
+    .dark .columns-dropdown-content { background-color: #374151; }
+    .columns-dropdown-content.show { display: block; }
+    .column-dropdown-item { display: flex; align-items: center; padding: 8px 10px; cursor: pointer; border-bottom: 1px solid #f0f0f0; transition: background-color 0.2s; }
+    .dark .column-dropdown-item { border-bottom-color: #4b5563; color: #f3f4f6; }
+    .column-dropdown-item:last-child { border-bottom: none; }
+    .column-dropdown-item:hover { background-color: #f5f5f5; }
+    .dark .column-dropdown-item:hover { background-color: #4b5563; }
+    .column-dropdown-item input[type="checkbox"] { margin-right: 10px; cursor: pointer; }
+    .column-dropdown-item label { cursor: pointer; font-size: 14px; flex-grow: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .columns-dropdown-actions { display: flex; gap: 10px; margin-top: 10px; padding-top: 10px; border-top: 1px solid #e0e0e0; }
+    .dark .columns-dropdown-actions { border-top-color: #4b5563; }
+    .columns-dropdown-action-btn { flex: 1; padding: 8px; background-color: #f0f0f0; border: none; border-radius: 4px; cursor: pointer; font-size: 12px; text-align: center; }
+    .dark .columns-dropdown-action-btn { background-color: #4b5563; color: #f3f4f6; }
+    .columns-dropdown-action-btn:hover { background-color: #e0e0e0; }
+    .dark .columns-dropdown-action-btn:hover { background-color: #6b7280; }
+
+    @media (max-width: 1200px) { .promo-container { overflow-x: auto; } .details-table { min-width: 1000px; } }
+    @media (max-width: 768px) { .chart-container { height: 400px; } .chart-container-small { height: 300px; } .details-table { font-size: 12px; } .details-table th, .details-table td { padding: 8px 5px; } .columns-dropdown-btn { min-width: 140px; padding: 8px 12px; } .columns-dropdown-content { max-width: 250px; max-height: 300px; } }
+    @media (max-width: 700px) { .columns-dropdown-content { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 90%; max-width: 300px; max-height: 80vh; } }
+</style>
+
+<div class="promo-container">
+    <h1 class="promo-title text-2xl font-bold">Анализ затрат на продвижение</h1>
+
+    <div id="cacheNotice" class="cache-notice">
+        <span style="display: none !important;" id="cacheTimestamp"></span>
+    </div>
+
+    <div id="errorMessage" class="error-message">
+        <strong>Ошибка загрузки данных:</strong> <span id="errorText"></span>
+    </div>
+
+    <div class="controls">
+        <select id="monthSelector">
+            <option value="all" selected>Все месяцы</option>
+            <option value="1">Январь</option>
+            <option value="2">Февраль</option>
+            <option value="3">Март</option>
+            <option value="4">Апрель</option>
+            <option value="5">Май</option>
+            <option value="6">Июнь</option>
+            <option value="7">Июль</option>
+            <option value="8">Август</option>
+            <option value="9">Сентябрь</option>
+            <option value="10">Октябрь</option>
+            <option value="11">Ноябрь</option>
+            <option value="12">Декабрь</option>
+        </select>
+
+        <select id="yearSelector">
+            <option value="all">Все годы</option>
+            <option value="2024">2024</option>
+            <option value="2025">2025</option>
+            <option value="2026" selected>2026</option>
+        </select>
+
+        <select id="categorySelector" class="category-control">
+            <option value="all" selected>Все категории</option>
+        </select>
+
+        <div class="view-toggle">
+            <button id="viewByCategory" class="active">По категориям</button>
+            <button id="viewByMonth">По месяцам</button>
+        </div>
+
+        <div class="columns-dropdown-container">
+            <button class="columns-dropdown-btn" id="columnsDropdownBtn">
+                Управление столбцами
+            </button>
+            <div class="columns-dropdown-content" id="columnsDropdownContent">
+                <div id="columnsDropdownList"></div>
+                <div class="columns-dropdown-actions">
+                    <button class="columns-dropdown-action-btn" id="toggleAllDropdown">Переключить все</button>
+                    <button class="columns-dropdown-action-btn" id="showAllDropdown">Показать все</button>
+                    <button class="columns-dropdown-action-btn" id="hideAllDropdown">Скрыть все</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="summary">
+        <h3>Суммарные затраты: <span id="totalCost">0</span></h3>
+    </div>
+
+    <div id="noDataMessage" class="no-data-message">
+        <p>В выбранном месяце нет данных о затратах. Показаны данные за предыдущий месяц.</p>
+    </div>
+
+    <div class="breadcrumb" id="breadcrumb" style="display: none;">
+        <a id="backToMain">Все разделы</a> > <span id="currentSection"></span>
+    </div>
+
+    <div class="chart-container">
+        <canvas id="costChart"></canvas>
+    </div>
+
+    <div id="subsectionChartSection" style="display: none;">
+        <div class="subsection-header">
+            <h3>Детализация затрат по месяцам: <span id="selectedSubsectionTitle"></span></h3>
+        </div>
+        <div class="chart-container-small">
+            <canvas id="subsectionChart"></canvas>
+        </div>
+    </div>
+
+    <div id="monthFilterInfo" class="month-filter-info">
+        Показаны данные за: <strong id="currentMonthFilter"></strong>
+        <span class="clear-filter" onclick="clearMonthFilter()">[Показать все месяцы]</span>
+    </div>
+
+    <div id="detailsSection" style="display: none;">
+        <h3 class="text-lg font-semibold mb-4">Детализация затрат: <span id="selectedSubsection"></span></h3>
+        <div class="table-container">
+            <table class="details-table">
+                <thead>
+                    <tr>
+                        <th data-sort="month">Месяц</th>
+                        <th data-sort="cost" data-order="desc">Затраты</th>
+                        <th data-sort="details">Уточняющие данные</th>
+                        <th data-sort="product">Товарная группа</th>
+                        <th data-sort="responsible">Ответственный</th>
+                        <th data-sort="comment">Комментарий</th>
+                    </tr>
+                </thead>
+                <tbody id="detailsTableBody"></tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<script>
+    let chart;
+    let subsectionChart;
+    let allData = [];
+    let currentFilteredData = [];
+    let currentLabels = [];
+    let currentDetailsData = [];
+    let currentSortColumn = 'cost';
+    let currentSortOrder = 'desc';
+    let currentView = 'main';
+    let currentSelectedSection = '';
+    let currentSelectedSubsection = '';
+    let currentViewMode = 'category';
+    let monthsWithData = [];
+    const categoryColors = {};
+    let isUsingCachedData = false;
+    let currentMonthFilter = null;
+    let allCategories = [];
+    let columnVisibilityState = {};
+    let originalChartData = {};
+    let currentTotalCost = 0;
+
+    function getCurrentYear() { return new Date().getFullYear().toString(); }
+
+    function getRussianMonthName(month) {
+        const monthNum = typeof month === 'string' ? parseMonth(month) : month;
+        const monthNames = {
+            1: 'Январь', 2: 'Февраль', 3: 'Март', 4: 'Апрель', 5: 'Май', 6: 'Июнь',
+            7: 'Июль', 8: 'Август', 9: 'Сентябрь', 10: 'Октябрь', 11: 'Ноябрь', 12: 'Декабрь',
+            'Jan':'Январь','Feb':'Февраль','Mar':'Март','Apr':'Апрель','May':'Май','Jun':'Июнь',
+            'Jul':'Июль','Aug':'Август','Sep':'Сентябрь','Oct':'Октябрь','Nov':'Ноябрь','Dec':'Декабрь'
+        };
+        return monthNames[monthNum] || month;
+    }
+
+    function getMonthOrder() {
+        return [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
+    }
+
+    function formatNumberWithSuffix(value) {
+        if(value>=1000000){return (value/1000000).toFixed(1)+' млн';}
+        else if(value>=1000){return (value/1000).toFixed(1)+' тыс';}
+        else{return value.toFixed(1);}
+    }
+
+    function formatFullNumber(value){return value.toLocaleString('ru-RU',{maximumFractionDigits:1});}
+
+    function formatChartLabel(value){
+        if(value>=1000000){return (value/1000000).toFixed(1)+'м';}
+        else if(value>=1000){return (value/1000).toFixed(1)+'к';}
+        else{return value.toFixed(1);}
+    }
+
+    function showCacheNotice(timestamp) {
+        const cacheNotice = document.getElementById('cacheNotice');
+        const cacheTimestamp = document.getElementById('cacheTimestamp');
+
+        if (timestamp) {
+            const date = new Date(timestamp * 1000);
+            cacheTimestamp.textContent = date.toLocaleString('ru-RU');
+        }
+
+        cacheNotice.style.display = 'block';
+        isUsingCachedData = true;
+    }
+
+    function hideCacheNotice() {
+        const cacheNotice = document.getElementById('cacheNotice');
+        cacheNotice.style.display = 'none';
+        isUsingCachedData = false;
+    }
+
+    function showError(message) {
+        const errorMessage = document.getElementById('errorMessage');
+        const errorText = document.getElementById('errorText');
+
+        errorText.textContent = message;
+        errorMessage.style.display = 'block';
+
+        document.querySelector('.controls').style.display = 'none';
+        document.querySelector('.summary').style.display = 'none';
+        document.querySelector('.chart-container').style.display = 'none';
+    }
+
+    function hideError() {
+        const errorMessage = document.getElementById('errorMessage');
+        errorMessage.style.display = 'none';
+
+        document.querySelector('.controls').style.display = 'flex';
+        document.querySelector('.summary').style.display = 'block';
+        document.querySelector('.chart-container').style.display = 'block';
+    }
+
+    function showMonthFilter(month) {
+        const monthFilterInfo = document.getElementById('monthFilterInfo');
+        const currentMonthFilterEl = document.getElementById('currentMonthFilter');
+
+        currentMonthFilterEl.textContent = getRussianMonthName(month);
+        monthFilterInfo.style.display = 'block';
+    }
+
+    function hideMonthFilter() {
+        const monthFilterInfo = document.getElementById('monthFilterInfo');
+        monthFilterInfo.style.display = 'none';
+        currentMonthFilter = null;
+    }
+
+    function clearMonthFilter() {
+        hideMonthFilter();
+        if (currentSelectedSubsection) {
+            showDetails(currentSelectedSubsection);
+        }
+    }
+
+    function updateCategorySelector() {
+        const categorySelector = document.getElementById('categorySelector');
+        categorySelector.innerHTML = '<option value="all" selected>Все категории</option>';
+
+        allCategories.forEach(category => {
+            const option = document.createElement('option');
+            option.value = category;
+            option.textContent = category;
+            categorySelector.appendChild(option);
+        });
+    }
+
+    function toggleCategorySelector(show) {
+        const categorySelector = document.getElementById('categorySelector');
+        if (show) {
+            categorySelector.style.display = 'block';
+        } else {
+            categorySelector.style.display = 'none';
+        }
+    }
+
+    function getViewKey() {
+        return currentView + (currentSelectedSection ? '_' + currentSelectedSection : '') + '_' + currentViewMode;
+    }
+
+    function updateColumnsDropdown(labels) {
+        const container = document.getElementById('columnsDropdownList');
+        const dropdown = document.getElementById('columnsDropdownContent');
+
+        if (!labels || labels.length === 0) {
+            return;
+        }
+
+        container.innerHTML = '';
+
+        const viewKey = getViewKey();
+        if (!columnVisibilityState[viewKey]) {
+            columnVisibilityState[viewKey] = {};
+            labels.forEach(label => {
+                columnVisibilityState[viewKey][label] = true;
+            });
+        }
+
+        labels.forEach((label, index) => {
+            const isVisible = columnVisibilityState[viewKey][label] !== false;
+
+            const itemDiv = document.createElement('div');
+            itemDiv.className = 'column-dropdown-item';
+            itemDiv.dataset.label = label;
+
+            const checkboxId = 'column-dropdown-' + viewKey + '-' + index;
+            itemDiv.innerHTML = '<input type="checkbox" id="' + checkboxId + '" ' + (isVisible ? 'checked' : '') + '>' +
+                '<label for="' + checkboxId + '">' + label + '</label>';
+
+            const checkbox = itemDiv.querySelector('input');
+            checkbox.addEventListener('change', function() {
+                const isChecked = this.checked;
+
+                columnVisibilityState[viewKey][label] = isChecked;
+
+                updateChartFromVisibilityState();
+            });
+
+            container.appendChild(itemDiv);
+        });
+
+        document.getElementById('columnsDropdownBtn').style.display = 'block';
+    }
+
+    function hideColumnsDropdown() {
+        const dropdown = document.getElementById('columnsDropdownContent');
+        dropdown.classList.remove('show');
+    }
+
+    function updateTotalCost() {
+        let totalCost = 0;
+
+        if (chart && chart.data && chart.data.datasets) {
+            if (chart.data.datasets.length > 1) {
+                chart.data.datasets.forEach(dataset => {
+                    if (chart.getDatasetMeta(chart.data.datasets.indexOf(dataset)).hidden) {
+                        return;
+                    }
+                    dataset.data.forEach(value => {
+                        totalCost += value;
+                    });
+                });
+            } else {
+                if (chart.data.datasets[0] && chart.data.datasets[0].data) {
+                    chart.data.datasets[0].data.forEach(value => {
+                        totalCost += value;
+                    });
+                }
+            }
+        }
+
+        currentTotalCost = totalCost;
+        document.getElementById('totalCost').textContent = formatNumberWithSuffix(totalCost) + ' руб.';
+    }
+
+    function updateChartFromVisibilityState() {
+        if (!chart) return;
+
+        const viewKey = getViewKey();
+        const visibilityState = columnVisibilityState[viewKey];
+        const originalData = originalChartData[viewKey];
+
+        if (!visibilityState || !originalData) return;
+
+        if (originalData.datasets) {
+            const visibleDatasets = originalData.datasets.filter(dataset => {
+                return visibilityState[dataset.label] !== false;
+            });
+
+            chart.data.datasets = visibleDatasets;
+            chart.update();
+        } else {
+            const visibleLabels = [];
+            const visibleData = [];
+            const visibleBackgroundColors = [];
+            const visibleBorderColors = [];
+            const visibleHoverColors = [];
+
+            if (originalData.backgroundColors) {
+                originalData.labels.forEach((label, index) => {
+                    if (visibilityState[label] !== false) {
+                        visibleLabels.push(label);
+                        visibleData.push(originalData.data[index]);
+                        visibleBackgroundColors.push(originalData.backgroundColors[index]);
+                        visibleBorderColors.push(originalData.borderColors[index]);
+                        visibleHoverColors.push(originalData.hoverColors[index]);
+                    }
+                });
+            } else {
+                originalData.labels.forEach((label, index) => {
+                    if (visibilityState[label] !== false) {
+                        visibleLabels.push(label);
+                        visibleData.push(originalData.data[index]);
+                        const colors = getCategoryColor(label, index);
+                        visibleBackgroundColors.push(colors.background);
+                        visibleBorderColors.push(colors.border);
+                        visibleHoverColors.push(colors.hover);
+                    }
+                });
+            }
+
+            chart.data.labels = visibleLabels;
+            chart.data.datasets[0].data = visibleData;
+            chart.data.datasets[0].backgroundColor = visibleBackgroundColors;
+            chart.data.datasets[0].borderColor = visibleBorderColors;
+            chart.data.datasets[0].hoverBackgroundColor = visibleHoverColors;
+
+            currentLabels = visibleLabels;
+
+            chart.update();
+        }
+
+        updateColumnsDropdown(originalData.labels || (originalData.datasets ? originalData.datasets.map(d => d.label) : []));
+
+        setTimeout(updateTotalCost, 100);
+    }
+
+    function getCategoryColor(category, index) {
+        if (!categoryColors[category]) {
+            const hue = (index * 137.5) % 360;
+            categoryColors[category] = {
+                background: 'hsla(' + hue + ', 70%, 65%, 0.7)',
+                border: 'hsla(' + hue + ', 70%, 55%, 1)',
+                hover: 'hsla(' + hue + ', 70%, 75%, 0.7)'
+            };
+        }
+        return categoryColors[category];
+    }
+
+    async function loadData() {
+        try {
+            const response = await fetch('/promo/api/data', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                }
+            });
+
+            if (!response.ok) {
+                if (response.status === 401) {
+                    window.location.href = '/auth/login';
+                    return;
+                }
+                throw new Error("Ошибка сети при загрузке данных из API");
+            }
+
+            const result = await response.json();
+
+            if (result.error) {
+                throw new Error(result.message || "Неизвестная ошибка при загрузке данных");
+            }
+
+            if (result._cached) {
+                showCacheNotice(result._cacheTimestamp);
+            } else {
+                hideCacheNotice();
+            }
+
+            allData = transformApiData(result.data);
+
+            const categoriesSet = new Set();
+            allData.forEach(item => {
+                if (item['Статья затрат']) {
+                    categoriesSet.add(item['Статья затрат']);
+                }
+            });
+            allCategories = Array.from(categoriesSet).sort();
+
+            updateCategorySelector();
+
+            const currentYear = new Date().getFullYear().toString();
+            document.getElementById('yearSelector').value = currentYear;
+
+            hideError();
+
+            if (currentViewMode === 'category') {
+                updateChartByCategory();
+            } else {
+                updateChartByMonth();
+            }
+
+        } catch (error) {
+            console.error("Ошибка загрузки данных из API:", error);
+            showError("Не удалось загрузить данные. Пожалуйста, проверьте подключение к интернету и попробуйте позже.");
+        }
+    }
+
+    function transformApiData(apiData) {
+        if (!Array.isArray(apiData)) return [];
+
+        return apiData.map(item => {
+            let month = item.Месяц;
+            if (typeof month === 'number') {
+                const monthMap = {
+                    1: 'Jan', 2: 'Feb', 3: 'Mar', 4: 'Apr', 5: 'May', 6: 'Jun',
+                    7: 'Jul', 8: 'Aug', 9: 'Sep', 10: 'Oct', 11: 'Nov', 12: 'Dec'
+                };
+                month = monthMap[month] || month.toString();
+            }
+
+            return {
+                'Год': item.Год || item.year || '',
+                'Месяц': month,
+                'Статья затрат': item.СтатьяЗатрат || item.costCategory || '',
+                'Подраздел завтрат': item.Подраздел || item.subcategory || '',
+                'Уточняющие данные': item.УточняющиеДанные || item.details || '',
+                'Товарная группа': item.ТоварнаяГруппа || item.productGroup || '',
+                'Затраты': item.Затраты || item.cost || 0,
+                'Отвественный': item.Ответственный || item.responsible || '',
+                'Комментарий': item.Комментарий || item.comment || ''
+            };
+        });
+    }
+
+    function parseMonth(monthStr) {
+        if (typeof monthStr === 'number') return monthStr;
+
+        const map = {
+            'янв.': 1, 'февр.': 2, 'мар.': 3, 'апр.': 4, 'мая': 5, 'июн.': 6,
+            'июл.': 7, 'авг.': 8, 'сент.': 9, 'окт.': 10, 'нояб.': 11, 'дек.': 12,
+            'jan': 1, 'feb': 2, 'mar': 3, 'apr': 4, 'may': 5, 'jun': 6,
+            'jul': 7, 'aug': 8, 'sep': 9, 'oct': 10, 'nov': 11, 'dec': 12,
+            'january': 1, 'february': 2, 'march': 3, 'april': 4, 'may': 5, 'june': 6,
+            'july': 7, 'august': 8, 'september': 9, 'october': 10, 'november': 11, 'december': 12
+        };
+        return map[monthStr.toLowerCase()] || parseInt(monthStr) || 1;
+    }
+
+    function normalizeMonth(month) {
+        if (typeof month === 'number') return month;
+
+        const monthMap = {
+            'Jan': 1, 'Feb': 2, 'Mar': 3, 'Apr': 4, 'May': 5, 'Jun': 6,
+            'Jul': 7, 'Aug': 8, 'Sep': 9, 'Oct': 10, 'Nov': 11, 'Dec': 12
+        };
+        return monthMap[month] || parseInt(month) || 1;
+    }
+
+    function createSubsectionChart(subsectionData, subsectionName) {
+        const ctx = document.getElementById('subsectionChart').getContext('2d');
+
+        if (subsectionChart) {
+            subsectionChart.destroy();
+        }
+
+        const costByMonth = {};
+        const monthOrder = getMonthOrder();
+
+        monthOrder.forEach(month => {
+            costByMonth[month] = 0;
+        });
+
+        subsectionData.forEach(item => {
+            const month = normalizeMonth(item['Месяц']);
+            let cost = item['Затраты'];
+
+            if (typeof cost === 'string') {
+                cost = parseFloat(cost.replace(/\\s/g, '').replace(',', '.'));
+            }
+
+            if (!isNaN(cost) && costByMonth[month] !== undefined) {
+                costByMonth[month] += cost;
+            }
+        });
+
+        const labels = monthOrder.map(month => getRussianMonthName(month));
+        const data = monthOrder.map(month => costByMonth[month]);
+
+        const monthsWithDataLocal = monthOrder.filter(month => costByMonth[month] > 0);
+        const filteredLabels = monthsWithDataLocal.map(month => getRussianMonthName(month));
+        const filteredData = monthsWithDataLocal.map(month => costByMonth[month]);
+
+        Chart.register(ChartDataLabels);
+
+        subsectionChart = new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: filteredLabels.length > 0 ? filteredLabels : labels,
+                datasets: [{
+                    label: 'Затраты (руб.)',
+                    data: filteredData.length > 0 ? filteredData : data,
+                    backgroundColor: 'rgba(54, 162, 235, 0.7)',
+                    borderColor: 'rgba(54, 162, 235, 1)',
+                    borderWidth: 1,
+                    hoverBackgroundColor: 'rgba(54, 162, 235, 0.9)'
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        title: { display: true, text: 'Затраты (руб.)', font: { size: 14, weight: 'bold' } },
+                        ticks: { callback: function(value) { return formatNumberWithSuffix(value); } }
+                    },
+                    x: { title: { display: true, text: 'Месяцы', font: { size: 14, weight: 'bold' } } }
+                },
+                plugins: {
+                    legend: { display: true, position: 'top' },
+                    tooltip: { callbacks: { label: function(context) { return formatFullNumber(context.parsed.y) + ' руб.'; } } },
+                    datalabels: {
+                        anchor: 'end', align: 'top',
+                        formatter: function(value) { return formatChartLabel(value); },
+                        font: { weight: 'bold', size: 11 }, color: '#333'
+                    }
+                },
+                onClick: (e, elements) => {
+                    if (elements.length > 0) {
+                        const index = elements[0].index;
+                        const clickedMonth = monthsWithDataLocal.length > 0 ? monthsWithDataLocal[index] : monthOrder[index];
+
+                        currentMonthFilter = clickedMonth;
+                        showMonthFilter(clickedMonth);
+
+                        updateTableWithMonthFilter(currentSelectedSubsection, clickedMonth);
+                    }
+                }
+            }
+        });
+
+        document.getElementById('columnsDropdownBtn').style.display = 'none';
+
+        document.getElementById('selectedSubsectionTitle').textContent = subsectionName;
+        document.getElementById('subsectionChartSection').style.display = 'block';
+    }
+
+    function updateTableWithMonthFilter(subsection, month) {
+        const selectedYear = document.getElementById('yearSelector').value;
+
+        const filteredData = currentFilteredData.filter(item => {
+            const itemMonth = normalizeMonth(item['Месяц']);
+            const matchesSubsection = item['Подраздел завтрат'] === subsection;
+            const matchesMonth = itemMonth === month;
+            const matchesYear = selectedYear === 'all' || item['Год'].toString() === selectedYear;
+
+            return matchesSubsection && matchesMonth && matchesYear;
+        });
+
+        currentDetailsData = filteredData.map(item => {
+            let cost = item['Затраты'];
+            if (typeof cost === 'string') {
+                cost = parseFloat(cost.replace(/\\s/g, '').replace(',', '.'));
+            }
+
+            return {
+                month: item['Месяц'],
+                cost: cost,
+                details: item['Уточняющие данные'],
+                product: item['Товарная группа'],
+                responsible: item['Отвественный'],
+                comment: item['Комментарий']
+            };
+        });
+
+        sortTable('cost', 'desc');
+
+        document.getElementById('selectedSubsection').textContent = subsection + ' (' + getRussianMonthName(month) + ')';
+    }
+
+    function sortTable(column, order) {
+        currentDetailsData.sort((a, b) => {
+            let valueA, valueB;
+
+            switch(column) {
+                case 'month': valueA = normalizeMonth(a.month); valueB = normalizeMonth(b.month); break;
+                case 'cost': valueA = a.cost; valueB = b.cost; break;
+                case 'details': valueA = a.details || ''; valueB = b.details || ''; break;
+                case 'product': valueA = a.product || ''; valueB = b.product || ''; break;
+                case 'responsible': valueA = a.responsible || ''; valueB = b.responsible || ''; break;
+                case 'comment': valueA = a.comment || ''; valueB = b.comment || ''; break;
+                default: valueA = a.cost; valueB = b.cost;
+            }
+
+            if (column === 'cost' || column === 'month') {
+                return order === 'asc' ? valueA - valueB : valueB - valueA;
+            }
+
+            if (typeof valueA === 'string' && typeof valueB === 'string') {
+                return order === 'asc' ? valueA.localeCompare(valueB, 'ru') : valueB.localeCompare(valueA, 'ru');
+            }
+
+            return 0;
+        });
+
+        renderTable();
+    }
+
+    function renderTable() {
+        const tableBody = document.getElementById('detailsTableBody');
+        tableBody.innerHTML = '';
+
+        if (currentDetailsData.length === 0) {
+            const row = document.createElement('tr');
+            row.innerHTML = '<td colspan="6" style="text-align: center; padding: 20px; color: #666;">Нет данных для отображения</td>';
+            tableBody.appendChild(row);
+            return;
+        }
+
+        currentDetailsData.forEach(item => {
+            const row = document.createElement('tr');
+
+            row.innerHTML = '<td>' + getRussianMonthName(item.month) + '</td>' +
+                '<td>' + formatFullNumber(item.cost) + ' руб.</td>' +
+                '<td>' + (item.details || '-') + '</td>' +
+                '<td>' + (item.product || '-') + '</td>' +
+                '<td>' + (item.responsible || '-') + '</td>' +
+                '<td>' + (item.comment || '-') + '</td>';
+
+            tableBody.appendChild(row);
+        });
+
+        const headers = document.querySelectorAll('.details-table th');
+        headers.forEach(header => {
+            header.classList.remove('asc', 'desc');
+            if (header.dataset.sort === currentSortColumn) {
+                header.classList.add(currentSortOrder);
+            }
+        });
+    }
+
+    function showDetails(subsection) {
+        currentSelectedSubsection = subsection;
+
+        hideMonthFilter();
+        currentMonthFilter = null;
+
+        const selectedMonthRaw = document.getElementById('monthSelector').value;
+        let selectedMonth = selectedMonthRaw === 'all' ? 'all' : parseMonth(selectedMonthRaw);
+        const selectedYear = document.getElementById('yearSelector').value;
+
+        const detailsData = currentFilteredData.filter(item => {
+            return item['Подраздел завтрат'] === subsection;
+        });
+
+        createSubsectionChart(detailsData, subsection);
+
+        currentDetailsData = detailsData.map(item => {
+            let cost = item['Затраты'];
+            if (typeof cost === 'string') {
+                cost = parseFloat(cost.replace(/\\s/g, '').replace(',', '.'));
+            }
+
+            return {
+                month: item['Месяц'],
+                cost: cost,
+                details: item['Уточняющие данные'],
+                product: item['Товарная группа'],
+                responsible: item['Отвественный'],
+                comment: item['Комментарий']
+            };
+        });
+
+        sortTable('cost', 'desc');
+
+        document.getElementById('selectedSubsection').textContent = subsection;
+        document.getElementById('detailsSection').style.display = 'block';
+    }
+
+    function showSubsections(section) {
+        currentView = 'subsection';
+        currentSelectedSection = section;
+        currentSelectedSubsection = '';
+
+        document.getElementById('subsectionChartSection').style.display = 'none';
+        hideMonthFilter();
+        currentMonthFilter = null;
+
+        document.getElementById('breadcrumb').style.display = 'block';
+        document.getElementById('currentSection').textContent = section;
+
+        const sectionData = currentFilteredData.filter(item => {
+            return item['Статья затрат'] === section;
+        });
+
+        const costBySubsection = {};
+        let totalCost = 0;
+
+        sectionData.forEach(item => {
+            const subsection = item['Подраздел завтрат'];
+            let cost = item['Затраты'];
+
+            if (typeof cost === 'string') {
+                cost = parseFloat(cost.replace(/\\s/g, '').replace(',', '.'));
+            }
+
+            if (!isNaN(cost)) {
+                if (!costBySubsection[subsection]) {
+                    costBySubsection[subsection] = 0;
+                }
+                costBySubsection[subsection] += cost;
+                totalCost += cost;
+            }
+        });
+
+        document.getElementById('totalCost').textContent = formatNumberWithSuffix(totalCost) + ' руб.';
+
+        const sortedSubsections = Object.entries(costBySubsection)
+            .sort((a, b) => b[1] - a[1])
+            .reduce((obj, entry) => {
+                obj[entry[0]] = entry[1];
+                return obj;
+            }, {});
+
+        currentLabels = Object.keys(sortedSubsections);
+        const data = Object.values(sortedSubsections);
+
+        const backgroundColors = [];
+        const borderColors = [];
+        const hoverColors = [];
+
+        currentLabels.forEach((label, index) => {
+            const colors = getCategoryColor(label, index);
+            backgroundColors.push(colors.background);
+            borderColors.push(colors.border);
+            hoverColors.push(colors.hover);
+        });
+
+        updateSubsectionChartView(data, currentLabels, section, backgroundColors, borderColors, hoverColors);
+
+        document.getElementById('detailsSection').style.display = 'none';
+    }
+
+    function updateSubsectionChartView(data, labels, title, backgroundColors, borderColors, hoverColors) {
+        const ctx = document.getElementById('costChart').getContext('2d');
+
+        if (chart) {
+            chart.destroy();
+        }
+
+        Chart.register(ChartDataLabels);
+
+        const viewKey = getViewKey();
+        const visibilityState = columnVisibilityState[viewKey] || {};
+
+        originalChartData[viewKey] = {
+            labels: labels, data: data, title: title,
+            backgroundColors: backgroundColors, borderColors: borderColors, hoverColors: hoverColors
+        };
+
+        const visibleLabels = [], visibleData = [], visibleBackgroundColors = [], visibleBorderColors = [], visibleHoverColors = [];
+
+        labels.forEach((label, index) => {
+            if (visibilityState[label] !== false) {
+                visibleLabels.push(label);
+                visibleData.push(data[index]);
+                visibleBackgroundColors.push(backgroundColors[index]);
+                visibleBorderColors.push(borderColors[index]);
+                visibleHoverColors.push(hoverColors[index]);
+            }
+        });
+
+        chart = new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: visibleLabels,
+                datasets: [{
+                    label: 'Затраты (руб.)', data: visibleData,
+                    backgroundColor: visibleBackgroundColors, borderColor: visibleBorderColors,
+                    borderWidth: 1, hoverBackgroundColor: visibleHoverColors
+                }]
+            },
+            options: {
+                responsive: true, maintainAspectRatio: false,
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        title: { display: true, text: 'Затраты (руб.)', font: { size: 14, weight: 'bold' } },
+                        ticks: { callback: function(value) { return formatNumberWithSuffix(value); } }
+                    },
+                    x: { title: { display: !!title, text: title, font: { size: 14, weight: 'bold' } } }
+                },
+                plugins: {
+                    legend: { display: true, position: 'top' },
+                    tooltip: { callbacks: { label: function(context) { return formatFullNumber(context.parsed.y) + ' руб.'; } } },
+                    datalabels: {
+                        anchor: 'end', align: 'top',
+                        formatter: function(value) { return formatChartLabel(value); },
+                        font: { weight: 'bold', size: 12 }
+                    }
+                },
+                onClick: (e, elements) => {
+                    if (elements.length > 0) {
+                        const index = elements[0].index;
+                        const subsection = visibleLabels[index];
+
+                        chart.data.datasets[0].backgroundColor = visibleLabels.map((label, i) =>
+                            i === index ? 'rgba(255, 99, 132, 0.7)' : visibleBackgroundColors[i]
+                        );
+                        chart.data.datasets[0].borderColor = visibleLabels.map((label, i) =>
+                            i === index ? 'rgba(255, 99, 132, 1)' : visibleBorderColors[i]
+                        );
+                        chart.update();
+
+                        showDetails(subsection);
+                    }
+                }
+            }
+        });
+
+        currentLabels = visibleLabels;
+        updateColumnsDropdown(labels);
+        updateTotalCost();
+    }
+
+    function showMainView() {
+        currentView = 'main';
+        currentSelectedSection = '';
+        currentSelectedSubsection = '';
+
+        document.getElementById('breadcrumb').style.display = 'none';
+        document.getElementById('subsectionChartSection').style.display = 'none';
+        hideMonthFilter();
+        currentMonthFilter = null;
+        hideColumnsDropdown();
+
+        if (currentViewMode === 'category') {
+            updateChartByCategory();
+        } else {
+            updateChartByMonth();
+        }
+
+        document.getElementById('detailsSection').style.display = 'none';
+    }
+
+    function updateChartView(data, labels, title) {
+        title = title || '';
+        const ctx = document.getElementById('costChart').getContext('2d');
+
+        if (chart) { chart.destroy(); }
+
+        Chart.register(ChartDataLabels);
+
+        const viewKey = getViewKey();
+        const visibilityState = columnVisibilityState[viewKey] || {};
+
+        originalChartData[viewKey] = { labels: labels, data: data, title: title };
+
+        const visibleLabels = [], visibleData = [], visibleBackgroundColors = [], visibleBorderColors = [], visibleHoverColors = [];
+
+        labels.forEach((label, index) => {
+            if (visibilityState[label] !== false) {
+                visibleLabels.push(label);
+                visibleData.push(data[index]);
+                const colors = getCategoryColor(label, index);
+                visibleBackgroundColors.push(colors.background);
+                visibleBorderColors.push(colors.border);
+                visibleHoverColors.push(colors.hover);
+            }
+        });
+
+        chart = new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: visibleLabels,
+                datasets: [{
+                    label: 'Затраты (руб.)', data: visibleData,
+                    backgroundColor: visibleBackgroundColors, borderColor: visibleBorderColors,
+                    borderWidth: 1, hoverBackgroundColor: visibleHoverColors
+                }]
+            },
+            options: {
+                responsive: true, maintainAspectRatio: false,
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        title: { display: true, text: 'Затраты (руб.)', font: { size: 14, weight: 'bold' } },
+                        ticks: { callback: function(value) { return formatNumberWithSuffix(value); } }
+                    },
+                    x: { title: { display: !!title, text: title, font: { size: 14, weight: 'bold' } } }
+                },
+                plugins: {
+                    legend: { display: true, position: 'top' },
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) { return formatFullNumber(context.parsed.y) + ' руб.'; },
+                            afterLabel: function(context) {
+                                const value = context.parsed.y;
+                                if (value >= 1000000) return '(' + (value / 1000000).toFixed(1) + ' млн)';
+                                else if (value >= 1000) return '(' + (value / 1000).toFixed(1) + ' тыс)';
+                                return '';
+                            }
+                        },
+                        displayColors: false, backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                        titleFont: { size: 14 }, bodyFont: { size: 14 }
+                    },
+                    datalabels: {
+                        anchor: 'end', align: 'top',
+                        formatter: function(value) { return formatChartLabel(value); },
+                        font: { weight: 'bold', size: 12 }, color: '#333'
+                    }
+                },
+                interaction: { mode: 'index', intersect: false },
+                layout: { padding: { top: 30 } },
+                onClick: (e, elements) => {
+                    if (elements.length > 0) {
+                        const index = elements[0].index;
+                        if (currentView === 'main' && currentViewMode === 'category') {
+                            const section = visibleLabels[index];
+                            showSubsections(section);
+                        }
+                    }
+                }
+            }
+        });
+
+        currentLabels = visibleLabels;
+        updateColumnsDropdown(labels);
+        updateTotalCost();
+    }
+
+    function updateChartByCategory() {
+        document.getElementById('noDataMessage').style.display = 'none';
+
+        const selectedMonthRaw = document.getElementById('monthSelector').value;
+        let selectedMonth = selectedMonthRaw === 'all' ? 'all' : parseMonth(selectedMonthRaw);
+        const selectedYear = document.getElementById('yearSelector').value;
+
+        currentFilteredData = allData;
+
+        if (selectedMonth !== 'all') {
+            currentFilteredData = currentFilteredData.filter(item => {
+                const itemMonth = normalizeMonth(item['Месяц']);
+                const filterMonth = normalizeMonth(selectedMonth);
+                return itemMonth === filterMonth;
+            });
+        }
+
+        if (selectedYear !== 'all') {
+            currentFilteredData = currentFilteredData.filter(item => item['Год'].toString() === selectedYear);
+        }
+
+        const costBySection = {};
+        let totalCost = 0;
+
+        currentFilteredData.forEach(item => {
+            const section = item['Статья затрат'];
+            let cost = item['Затраты'];
+
+            if (typeof cost === 'string') {
+                cost = parseFloat(cost.replace(/\\s/g, '').replace(',', '.'));
+            }
+
+            if (!isNaN(cost)) {
+                if (!costBySection[section]) costBySection[section] = 0;
+                costBySection[section] += cost;
+                totalCost += cost;
+            }
+        });
+
+        currentTotalCost = totalCost;
+        document.getElementById('totalCost').textContent = formatNumberWithSuffix(totalCost) + ' руб.';
+
+        const sortedSections = Object.entries(costBySection)
+            .sort((a, b) => b[1] - a[1])
+            .reduce((obj, entry) => { obj[entry[0]] = entry[1]; return obj; }, {});
+
+        currentLabels = Object.keys(sortedSections);
+        const data = Object.values(sortedSections);
+
+        updateChartView(data, currentLabels);
+    }
+
+    function updateChartByMonth() {
+        document.getElementById('noDataMessage').style.display = 'none';
+        const selectedMonthRaw = document.getElementById('monthSelector').value;
+        const selectedYear = document.getElementById('yearSelector').value;
+        const selectedCategory = document.getElementById('categorySelector').value;
+
+        currentFilteredData = allData;
+
+        if (selectedMonthRaw !== 'all') {
+            currentFilteredData = currentFilteredData.filter(item => {
+                const itemMonth = normalizeMonth(item['Месяц']);
+                const filterMonth = normalizeMonth(parseMonth(selectedMonthRaw));
+                return itemMonth === filterMonth;
+            });
+        }
+        if (selectedYear !== 'all') {
+            currentFilteredData = currentFilteredData.filter(item => item['Год'].toString() === selectedYear);
+        }
+        if (selectedCategory !== 'all') {
+            currentFilteredData = currentFilteredData.filter(item => item['Статья затрат'] === selectedCategory);
+        }
+
+        const costByMonthAndCategory = {};
+        const monthOrder = getMonthOrder();
+        const allCategoriesInData = new Set();
+        let totalCost = 0;
+
+        currentFilteredData.forEach(item => {
+            const category = item['Статья затрат'];
+            if (category) allCategoriesInData.add(category);
+        });
+        const categories = Array.from(allCategoriesInData);
+
+        monthOrder.forEach(month => {
+            costByMonthAndCategory[month] = {};
+            categories.forEach(category => { costByMonthAndCategory[month][category] = 0; });
+        });
+
+        currentFilteredData.forEach(item => {
+            const month = normalizeMonth(item['Месяц']);
+            const category = item['Статья затрат'];
+            let cost = parseFloat(item['Затраты'].toString().replace(/\\s/g, '').replace(',', '.'));
+            if (!isNaN(cost) && costByMonthAndCategory[month] && costByMonthAndCategory[month][category] !== undefined) {
+                costByMonthAndCategory[month][category] += cost;
+                totalCost += cost;
+            }
+        });
+
+        currentTotalCost = totalCost;
+        document.getElementById('totalCost').textContent = formatNumberWithSuffix(totalCost) + ' руб.';
+
+        monthsWithData = monthOrder.filter(month => {
+            const monthTotal = Object.values(costByMonthAndCategory[month]).reduce((sum, cost) => sum + cost, 0);
+            return monthTotal > 0;
+        });
+
+        currentLabels = monthsWithData.map(month => getRussianMonthName(month));
+
+        const datasets = categories.map((category, index) => {
+            const colors = getCategoryColor(category, index);
+            return {
+                label: category,
+                data: monthsWithData.map(month => costByMonthAndCategory[month][category] || 0),
+                backgroundColor: monthsWithData.map(() => colors.background),
+                borderColor: monthsWithData.map(() => colors.border),
+                hoverBackgroundColor: monthsWithData.map(() => colors.hover),
+                borderWidth: 1
+            };
+        });
+
+        const monthTotals = monthsWithData.map(month => {
+            return Object.values(costByMonthAndCategory[month]).reduce((sum, cost) => sum + cost, 0);
+        });
+
+        const isSingleColumn = monthsWithData.length === 1;
+
+        updateStackedChartView(datasets, currentLabels, monthTotals, 'Месяцы', isSingleColumn);
+    }
+
+    function updateStackedChartView(datasets, labels, totals, title, isSingleColumn) {
+        title = title || '';
+        isSingleColumn = isSingleColumn || false;
+        const ctx = document.getElementById('costChart').getContext('2d');
+
+        if (chart) { chart.destroy(); }
+
+        Chart.register(ChartDataLabels);
+
+        const viewKey = getViewKey();
+        const visibilityState = columnVisibilityState[viewKey] || {};
+
+        originalChartData[viewKey] = { labels: labels, datasets: datasets, title: title, totals: totals };
+
+        const visibleDatasets = datasets.filter(dataset => visibilityState[dataset.label] !== false);
+
+        chart = new Chart(ctx, {
+            type: 'bar',
+            data: { labels: labels, datasets: visibleDatasets },
+            options: {
+                responsive: true, maintainAspectRatio: false,
+                scales: {
+                    y: {
+                        beginAtZero: true, stacked: true,
+                        title: { display: true, text: 'Затраты (руб.)', font: { size: 14, weight: 'bold' } },
+                        ticks: { callback: function(value) { return formatNumberWithSuffix(value); } }
+                    },
+                    x: { stacked: true, title: { display: !!title, text: title, font: { size: 14, weight: 'bold' } } }
+                },
+                plugins: {
+                    legend: {
+                        display: true, position: 'top',
+                        onClick: function(e, legendItem, legend) {
+                            const index = legendItem.datasetIndex;
+                            const ci = legend.chart;
+
+                            if (ci.isDatasetVisible(index)) { ci.hide(index); legendItem.hidden = true; }
+                            else { ci.show(index); legendItem.hidden = false; }
+
+                            const viewKey = getViewKey();
+                            const datasetLabel = ci.data.datasets[index] ? ci.data.datasets[index].label : null;
+                            if (datasetLabel) {
+                                const checkboxes = document.querySelectorAll('#columnsDropdownList input[type="checkbox"]');
+                                checkboxes.forEach((checkbox) => {
+                                    if (checkbox.parentElement.dataset.label === datasetLabel) {
+                                        checkbox.checked = !legendItem.hidden;
+                                        if (columnVisibilityState[viewKey]) {
+                                            columnVisibilityState[viewKey][datasetLabel] = !legendItem.hidden;
+                                        }
+                                    }
+                                });
+                            }
+                            updateChartFromVisibilityState();
+                        }
+                    },
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                const value = context.parsed.y;
+                                const total = totals[context.dataIndex];
+                                const percentage = total > 0 ? ((value / total) * 100).toFixed(1) : 0;
+                                return context.dataset.label + ': ' + formatFullNumber(value) + ' руб. (' + percentage + '%)';
+                            }
+                        }
+                    },
+                    datalabels: {
+                        display: isSingleColumn ? 'auto' : false,
+                        anchor: 'end', align: 'top',
+                        formatter: function(value) { return formatChartLabel(value); },
+                        font: { weight: 'bold', size: 12 }, color: '#333'
+                    }
+                },
+                interaction: { mode: 'nearest', axis: 'x', intersect: false },
+                layout: { padding: { top: 30 } },
+                onClick: (e, elements) => {
+                    if (elements.length > 0 && currentViewMode === 'month') {
+                        const monthIndex = elements[0].index;
+                        const month = monthsWithData[monthIndex];
+                        const category = visibleDatasets[elements[0].datasetIndex].label;
+
+                        const monthData = currentFilteredData.filter(item => {
+                            return normalizeMonth(item['Месяц']) === month && item['Статья затрат'] === category;
+                        });
+
+                        currentDetailsData = monthData.map(item => {
+                            let cost = item['Затраты'];
+                            if (typeof cost === 'string') { cost = parseFloat(cost.replace(/\\s/g, '').replace(',', '.')); }
+                            return {
+                                month: item['Месяц'], cost: cost, details: item['Уточняющие данные'],
+                                product: item['Товарная группа'], responsible: item['Отвественный'], comment: item['Комментарий']
+                            };
+                        });
+
+                        sortTable('cost', 'desc');
+
+                        document.getElementById('selectedSubsection').textContent = getRussianMonthName(month) + ' - ' + category;
+                        document.getElementById('detailsSection').style.display = 'block';
+                    }
+                }
+            }
+        });
+
+        const datasetLabels = datasets.map(dataset => dataset.label);
+        updateColumnsDropdown(datasetLabels);
+        updateTotalCost();
+    }
+
+    document.addEventListener('DOMContentLoaded', function() {
+        loadData();
+
+        document.getElementById('monthSelector').addEventListener('change', function() {
+            if (currentViewMode === 'category') { updateChartByCategory(); }
+            else { updateChartByMonth(); }
+        });
+
+        document.getElementById('yearSelector').addEventListener('change', function() {
+            if (currentViewMode === 'category') { updateChartByCategory(); }
+            else { updateChartByMonth(); }
+        });
+
+        document.getElementById('categorySelector').addEventListener('change', function() {
+            if (currentViewMode === 'month') { updateChartByMonth(); }
+        });
+
+        document.getElementById('viewByCategory').addEventListener('click', function() {
+            currentViewMode = 'category';
+            document.getElementById('viewByCategory').classList.add('active');
+            document.getElementById('viewByMonth').classList.remove('active');
+            toggleCategorySelector(false);
+            showMainView();
+        });
+
+        document.getElementById('viewByMonth').addEventListener('click', function() {
+            currentViewMode = 'month';
+            document.getElementById('viewByMonth').classList.add('active');
+            document.getElementById('viewByCategory').classList.remove('active');
+            toggleCategorySelector(true);
+            showMainView();
+        });
+
+        document.getElementById('backToMain').addEventListener('click', function() {
+            showMainView();
+        });
+
+        document.querySelectorAll('.details-table th[data-sort]').forEach(header => {
+            header.addEventListener('click', function() {
+                const column = this.dataset.sort;
+
+                if (currentSortColumn === column) {
+                    currentSortOrder = currentSortOrder === 'asc' ? 'desc' : 'asc';
+                } else {
+                    currentSortColumn = column;
+                    currentSortOrder = 'desc';
+                }
+
+                sortTable(currentSortColumn, currentSortOrder);
+            });
+        });
+
+        const dropdownBtn = document.getElementById('columnsDropdownBtn');
+        const dropdownContent = document.getElementById('columnsDropdownContent');
+
+        dropdownBtn.addEventListener('click', function(e) {
+            e.stopPropagation();
+            dropdownContent.classList.toggle('show');
+        });
+
+        document.addEventListener('click', function(e) {
+            if (!dropdownContent.contains(e.target) && !dropdownBtn.contains(e.target)) {
+                dropdownContent.classList.remove('show');
+            }
+        });
+
+        document.getElementById('toggleAllDropdown').addEventListener('click', function(e) {
+            e.stopPropagation();
+            const viewKey = getViewKey();
+            const checkboxes = document.querySelectorAll('#columnsDropdownList input[type="checkbox"]');
+            const allChecked = Array.from(checkboxes).every(cb => cb.checked);
+
+            checkboxes.forEach((checkbox) => {
+                const label = checkbox.parentElement.dataset.label;
+                const newState = !allChecked;
+                checkbox.checked = newState;
+                if (columnVisibilityState[viewKey]) { columnVisibilityState[viewKey][label] = newState; }
+            });
+
+            updateChartFromVisibilityState();
+        });
+
+        document.getElementById('showAllDropdown').addEventListener('click', function(e) {
+            e.stopPropagation();
+            const viewKey = getViewKey();
+            const checkboxes = document.querySelectorAll('#columnsDropdownList input[type="checkbox"]');
+
+            checkboxes.forEach((checkbox) => {
+                const label = checkbox.parentElement.dataset.label;
+                checkbox.checked = true;
+                if (columnVisibilityState[viewKey]) { columnVisibilityState[viewKey][label] = true; }
+            });
+
+            updateChartFromVisibilityState();
+        });
+
+        document.getElementById('hideAllDropdown').addEventListener('click', function(e) {
+            e.stopPropagation();
+            const viewKey = getViewKey();
+            const checkboxes = document.querySelectorAll('#columnsDropdownList input[type="checkbox"]');
+
+            checkboxes.forEach((checkbox) => {
+                const label = checkbox.parentElement.dataset.label;
+                checkbox.checked = false;
+                if (columnVisibilityState[viewKey]) { columnVisibilityState[viewKey][label] = false; }
+            });
+
+            updateChartFromVisibilityState();
+        });
+
+        dropdownContent.addEventListener('click', function(e) { e.stopPropagation(); });
+    });
+</script>
+` }) %>

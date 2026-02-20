@@ -1,0 +1,960 @@
+<%- include('../layouts/main', {
+  title: title,
+  body: `
+<style>
+  .pos-container {
+    padding: 24px;
+    max-width: 100%;
+    overflow-x: auto;
+  }
+
+  .pos-header {
+    margin-bottom: 24px;
+  }
+
+  .pos-header h1 {
+    font-size: 24px;
+    font-weight: 700;
+    color: #1f2937;
+    margin-bottom: 8px;
+  }
+
+  .dark .pos-header h1 {
+    color: #f3f4f6;
+  }
+
+  .data-source-info {
+    font-size: 14px;
+    font-weight: 600;
+    padding: 8px 16px;
+    border-radius: 8px;
+    display: inline-block;
+  }
+
+  .data-source-info.from-server {
+    background-color: #d1fae5;
+    color: #065f46;
+  }
+
+  .data-source-info.from-cache {
+    background-color: #fef3c7;
+    color: #92400e;
+  }
+
+  .dark .data-source-info.from-server {
+    background-color: #064e3b;
+    color: #a7f3d0;
+  }
+
+  .dark .data-source-info.from-cache {
+    background-color: #78350f;
+    color: #fde68a;
+  }
+
+  .pos-table-container {
+    background: white;
+    border-radius: 12px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    overflow: hidden;
+  }
+
+  .dark .pos-table-container {
+    background: #1f2937;
+  }
+
+  .pos-table {
+    width: 100%;
+    border-collapse: collapse;
+    min-width: 800px;
+  }
+
+  .pos-table th {
+    background-color: #f3f4f6;
+    color: #374151;
+    font-weight: 600;
+    text-align: center;
+    padding: 14px 12px;
+    border-bottom: 2px solid #e5e7eb;
+    white-space: nowrap;
+    font-size: 14px;
+  }
+
+  .dark .pos-table th {
+    background-color: #374151;
+    color: #f3f4f6;
+    border-bottom-color: #4b5563;
+  }
+
+  .pos-table th.total-header {
+    background-color: #ef4444;
+    color: white;
+  }
+
+  .pos-table td {
+    padding: 12px;
+    border-bottom: 1px solid #e5e7eb;
+    vertical-align: middle;
+    font-size: 14px;
+  }
+
+  .dark .pos-table td {
+    border-bottom-color: #4b5563;
+    color: #e5e7eb;
+  }
+
+  .pos-table tr:hover {
+    background-color: #f9fafb;
+  }
+
+  .dark .pos-table tr:hover {
+    background-color: #374151;
+  }
+
+  .photo-cell {
+    width: 80px;
+    text-align: center;
+    padding: 8px;
+  }
+
+  .product-image-container {
+    position: relative;
+    display: inline-block;
+  }
+
+  .product-image {
+    width: 70px;
+    height: 70px;
+    object-fit: cover;
+    border-radius: 8px;
+    border: 1px solid #e5e7eb;
+    cursor: pointer;
+    transition: transform 0.2s, box-shadow 0.2s;
+  }
+
+  .product-image:hover {
+    transform: scale(1.05);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+  }
+
+  .image-overlay {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 30%;
+    background: rgba(0,0,0,0.7);
+    display: none;
+    justify-content: center;
+    align-items: center;
+    border-radius: 0 0 8px 8px;
+    cursor: pointer;
+    color: white;
+    font-size: 11px;
+  }
+
+  .product-image-container:hover .image-overlay {
+    display: flex;
+  }
+
+  .photo-placeholder {
+    width: 70px;
+    height: 70px;
+    background-color: #f3f4f6;
+    border: 2px dashed #d1d5db;
+    border-radius: 8px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.2s;
+    color: #6b7280;
+    font-size: 10px;
+    text-align: center;
+    padding: 4px;
+  }
+
+  .photo-placeholder:hover {
+    background-color: #e5e7eb;
+    border-color: #9ca3af;
+    color: #4b5563;
+  }
+
+  .dark .photo-placeholder {
+    background-color: #374151;
+    border-color: #4b5563;
+    color: #9ca3af;
+  }
+
+  .dark .photo-placeholder:hover {
+    background-color: #4b5563;
+    border-color: #6b7280;
+  }
+
+  .upload-icon {
+    font-size: 20px;
+    margin-bottom: 2px;
+  }
+
+  .nomenclature-cell {
+    font-weight: 600;
+    color: #1f2937;
+    min-width: 200px;
+  }
+
+  .dark .nomenclature-cell {
+    color: #f3f4f6;
+  }
+
+  .category-cell {
+    color: #6b7280;
+    min-width: 180px;
+  }
+
+  .dark .category-cell {
+    color: #9ca3af;
+  }
+
+  .quantity-cell {
+    text-align: center;
+    font-weight: 600;
+    font-size: 15px;
+  }
+
+  .quantity-high {
+    color: #059669;
+  }
+
+  .quantity-low {
+    color: #dc2626;
+  }
+
+  .quantity-zero {
+    color: #9ca3af;
+  }
+
+  .total-cell {
+    background-color: #f9fafb;
+    font-weight: 700;
+    text-align: center;
+  }
+
+  .dark .total-cell {
+    background-color: #374151;
+  }
+
+  .details-btn {
+    background: linear-gradient(135deg, #6366f1, #8b5cf6);
+    color: white;
+    border: none;
+    padding: 8px 16px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 500;
+    transition: all 0.2s;
+    white-space: nowrap;
+  }
+
+  .details-btn:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(99, 102, 241, 0.4);
+  }
+
+  .totals-row {
+    background-color: #f3f4f6 !important;
+    font-weight: 700;
+  }
+
+  .dark .totals-row {
+    background-color: #374151 !important;
+  }
+
+  .summary-bar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 16px;
+    margin-top: 16px;
+    padding: 16px 20px;
+    background: white;
+    border-radius: 12px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+  }
+
+  .dark .summary-bar {
+    background: #1f2937;
+  }
+
+  .summary-item {
+    font-size: 14px;
+    color: #4b5563;
+  }
+
+  .dark .summary-item {
+    color: #9ca3af;
+  }
+
+  .summary-item strong {
+    color: #1f2937;
+  }
+
+  .dark .summary-item strong {
+    color: #f3f4f6;
+  }
+
+  /* Modal styles */
+  .pos-modal {
+    display: none;
+    position: fixed;
+    z-index: 1000;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0,0,0,0.8);
+    justify-content: center;
+    align-items: center;
+    padding: 20px;
+  }
+
+  .pos-modal.active {
+    display: flex;
+  }
+
+  .pos-modal-content {
+    background: white;
+    border-radius: 16px;
+    max-width: 500px;
+    width: 100%;
+    max-height: 85vh;
+    overflow-y: auto;
+    box-shadow: 0 25px 50px -12px rgba(0,0,0,0.25);
+  }
+
+  .dark .pos-modal-content {
+    background: #1f2937;
+  }
+
+  .pos-modal-header {
+    padding: 20px 24px;
+    border-bottom: 1px solid #e5e7eb;
+  }
+
+  .dark .pos-modal-header {
+    border-bottom-color: #374151;
+  }
+
+  .pos-modal-header h3 {
+    font-size: 18px;
+    font-weight: 700;
+    color: #1f2937;
+    margin: 0;
+  }
+
+  .dark .pos-modal-header h3 {
+    color: #f3f4f6;
+  }
+
+  .pos-modal-body {
+    padding: 24px;
+  }
+
+  .product-info {
+    background: #f9fafb;
+    border-radius: 8px;
+    padding: 16px;
+    margin-bottom: 20px;
+  }
+
+  .dark .product-info {
+    background: #374151;
+  }
+
+  .product-info p {
+    margin: 6px 0;
+    font-size: 14px;
+    color: #4b5563;
+  }
+
+  .dark .product-info p {
+    color: #d1d5db;
+  }
+
+  .product-info strong {
+    color: #1f2937;
+  }
+
+  .dark .product-info strong {
+    color: #f3f4f6;
+  }
+
+  .warehouse-list-title {
+    font-size: 15px;
+    font-weight: 600;
+    color: #6366f1;
+    margin-bottom: 12px;
+    text-align: center;
+  }
+
+  .warehouse-list {
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    overflow: hidden;
+  }
+
+  .dark .warehouse-list {
+    border-color: #4b5563;
+  }
+
+  .warehouse-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 16px;
+    border-bottom: 1px solid #e5e7eb;
+  }
+
+  .dark .warehouse-item {
+    border-bottom-color: #4b5563;
+  }
+
+  .warehouse-item:last-child {
+    border-bottom: none;
+  }
+
+  .warehouse-item:nth-child(even) {
+    background-color: #f9fafb;
+  }
+
+  .dark .warehouse-item:nth-child(even) {
+    background-color: #374151;
+  }
+
+  .warehouse-name {
+    font-weight: 600;
+    color: #1f2937;
+    font-size: 14px;
+  }
+
+  .dark .warehouse-name {
+    color: #f3f4f6;
+  }
+
+  .warehouse-quantity {
+    font-weight: 700;
+    font-size: 15px;
+  }
+
+  .total-details {
+    background: linear-gradient(135deg, #6366f1, #8b5cf6);
+    color: white;
+    padding: 14px;
+    border-radius: 8px;
+    margin-top: 16px;
+    text-align: center;
+    font-weight: 700;
+    font-size: 16px;
+  }
+
+  .close-modal-btn {
+    width: 100%;
+    margin-top: 20px;
+    padding: 14px;
+    background: #f3f4f6;
+    border: none;
+    border-radius: 8px;
+    font-size: 15px;
+    font-weight: 600;
+    color: #374151;
+    cursor: pointer;
+    transition: background 0.2s;
+  }
+
+  .close-modal-btn:hover {
+    background: #e5e7eb;
+  }
+
+  .dark .close-modal-btn {
+    background: #374151;
+    color: #e5e7eb;
+  }
+
+  .dark .close-modal-btn:hover {
+    background: #4b5563;
+  }
+
+  /* Upload progress */
+  .upload-progress-container {
+    display: none;
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: white;
+    padding: 30px;
+    border-radius: 16px;
+    box-shadow: 0 25px 50px -12px rgba(0,0,0,0.25);
+    z-index: 1001;
+    text-align: center;
+    min-width: 250px;
+  }
+
+  .dark .upload-progress-container {
+    background: #1f2937;
+    color: #f3f4f6;
+  }
+
+  .progress-bar {
+    width: 100%;
+    height: 12px;
+    background: #e5e7eb;
+    border-radius: 6px;
+    overflow: hidden;
+    margin: 16px 0;
+  }
+
+  .dark .progress-bar {
+    background: #374151;
+  }
+
+  .progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #6366f1, #8b5cf6);
+    width: 0%;
+    transition: width 0.3s;
+  }
+
+  /* Notifications */
+  .upload-notification {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    padding: 16px 24px;
+    border-radius: 12px;
+    font-weight: 600;
+    z-index: 1002;
+    display: none;
+    box-shadow: 0 10px 25px rgba(0,0,0,0.15);
+    font-size: 14px;
+  }
+
+  .upload-notification.success {
+    background: #059669;
+    color: white;
+  }
+
+  .upload-notification.error {
+    background: #dc2626;
+    color: white;
+  }
+
+  /* Loading state */
+  .loading-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 60px;
+    color: #6b7280;
+  }
+
+  .loading-spinner {
+    width: 48px;
+    height: 48px;
+    border: 4px solid #e5e7eb;
+    border-top-color: #6366f1;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+  }
+
+  @keyframes spin {
+    to { transform: rotate(360deg); }
+  }
+
+  .error-message {
+    background: #fef2f2;
+    border: 1px solid #fecaca;
+    color: #991b1b;
+    padding: 20px;
+    border-radius: 12px;
+    text-align: center;
+  }
+
+  .dark .error-message {
+    background: #450a0a;
+    border-color: #7f1d1d;
+    color: #fca5a5;
+  }
+</style>
+
+<div class="pos-container">
+  <div class="pos-header">
+    <h1>Остатки промо материалов</h1>
+    <div id="dataSourceInfo" class="data-source-info"></div>
+  </div>
+
+  <div id="loadingContainer" class="loading-container">
+    <div class="loading-spinner"></div>
+    <p style="margin-top: 16px;">Загрузка данных...</p>
+  </div>
+
+  <div id="errorContainer" class="error-message" style="display: none;"></div>
+
+  <div id="tableContainer" class="pos-table-container" style="display: none;">
+    <div style="overflow-x: auto;">
+      <table class="pos-table">
+        <thead>
+          <tr>
+            <th>Фото</th>
+            <th>Название</th>
+            <th>Категория</th>
+            <th class="total-header">Итого</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="tableBody">
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div id="summaryBar" class="summary-bar" style="display: none;">
+    <div class="summary-item"><strong id="totalItems">0</strong> позиций</div>
+    <div class="summary-item">Всего единиц: <strong id="totalQuantity">0</strong></div>
+    <div class="summary-item" id="updateInfo"></div>
+  </div>
+</div>
+
+<!-- Details Modal -->
+<div id="detailsModal" class="pos-modal">
+  <div class="pos-modal-content">
+    <div class="pos-modal-header">
+      <h3 id="modalTitle">Детальная информация</h3>
+    </div>
+    <div class="pos-modal-body">
+      <div id="productInfo" class="product-info"></div>
+      <div class="warehouse-list-title">Остатки по складам:</div>
+      <div id="warehouseList" class="warehouse-list"></div>
+      <div id="totalDetails" class="total-details"></div>
+      <button class="close-modal-btn" onclick="closeDetailsModal()">Закрыть</button>
+    </div>
+  </div>
+</div>
+
+<!-- Image Preview Modal -->
+<div id="imageModal" class="pos-modal" onclick="closeImageModal()">
+  <img id="imageModalImg" src="" alt="" style="max-width: 90%; max-height: 90%; object-fit: contain; border-radius: 8px;">
+</div>
+
+<!-- Upload Progress -->
+<div id="uploadProgressContainer" class="upload-progress-container">
+  <div>Загрузка фото...</div>
+  <div class="progress-bar">
+    <div class="progress-fill" id="progressFill"></div>
+  </div>
+  <div id="progressText">0%</div>
+</div>
+
+<!-- Upload Notification -->
+<div id="uploadNotification" class="upload-notification"></div>
+
+<!-- Hidden file input -->
+<input type="file" id="imageFileInput" style="display: none;" accept="image/*">
+
+<script>
+  let currentProduct = { rowId: null, productName: null, safeName: null };
+  let productsData = [];
+
+  // Load data on page load
+  document.addEventListener('DOMContentLoaded', loadData);
+
+  async function loadData() {
+    const loadingContainer = document.getElementById('loadingContainer');
+    const errorContainer = document.getElementById('errorContainer');
+    const tableContainer = document.getElementById('tableContainer');
+    const summaryBar = document.getElementById('summaryBar');
+    const dataSourceInfo = document.getElementById('dataSourceInfo');
+
+    try {
+      const response = await fetch('/pos/api/data', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      });
+
+      if (response.status === 401) {
+        window.location.href = '/auth/login';
+        return;
+      }
+
+      const data = await response.json();
+
+      if (!data.success) {
+        throw new Error(data.message || 'Ошибка загрузки данных');
+      }
+
+      productsData = data.items;
+
+      // Update data source info
+      if (data.fromCache) {
+        const cacheDate = data.cacheTime ? new Date(data.cacheTime).toLocaleString('ru-RU') : 'неизвестно';
+        dataSourceInfo.textContent = '⚠️ Данные из кэша (обновлено: ' + cacheDate + ')';
+        dataSourceInfo.className = 'data-source-info from-cache';
+      } else {
+        dataSourceInfo.textContent = '✅ Данные загружены с сервера';
+        dataSourceInfo.className = 'data-source-info from-server';
+      }
+
+      // Render table
+      renderTable(data);
+
+      // Update summary
+      document.getElementById('totalItems').textContent = data.totalItems;
+      document.getElementById('totalQuantity').textContent = data.grandTotal.toLocaleString('ru-RU');
+      document.getElementById('updateInfo').textContent = 'Обновлено: ' + new Date().toLocaleString('ru-RU');
+
+      // Show table, hide loading
+      loadingContainer.style.display = 'none';
+      tableContainer.style.display = 'block';
+      summaryBar.style.display = 'flex';
+
+    } catch (error) {
+      loadingContainer.style.display = 'none';
+      errorContainer.textContent = error.message;
+      errorContainer.style.display = 'block';
+    }
+  }
+
+  function renderTable(data) {
+    const tableBody = document.getElementById('tableBody');
+    let html = '';
+
+    data.items.forEach((item, index) => {
+      const quantityClass = item.totalRemainder === 0 ? 'quantity-zero' :
+                           item.totalRemainder < 10 ? 'quantity-low' : 'quantity-high';
+
+      html += '<tr data-row-id="' + item.id + '">';
+      html += '<td class="photo-cell">';
+
+      if (item.imagePath) {
+        html += '<div class="product-image-container">';
+        html += '<img src="' + escapeHtml(item.imagePath) + '" alt="' + escapeHtml(item.productName) + '" class="product-image" data-action="preview">';
+        html += '<div class="image-overlay" data-action="replace" data-id="' + item.id + '" data-name="' + escapeHtml(item.productName) + '" data-safe="' + escapeHtml(item.safeProductName) + '">';
+        html += '<span>✎ Заменить</span>';
+        html += '</div></div>';
+      } else {
+        html += '<div class="photo-placeholder" data-action="upload" data-id="' + item.id + '" data-name="' + escapeHtml(item.productName) + '" data-safe="' + escapeHtml(item.safeProductName) + '">';
+        html += '<div class="upload-icon">+</div>';
+        html += '<div>Добавить фото</div>';
+        html += '</div>';
+      }
+
+      html += '</td>';
+      html += '<td class="nomenclature-cell">' + escapeHtml(item.productName) + '</td>';
+      html += '<td class="category-cell">' + escapeHtml(item.category) + '</td>';
+      html += '<td class="quantity-cell total-cell ' + quantityClass + '">' + item.totalRemainder + '</td>';
+      html += '<td style="text-align: center;">';
+      html += '<button class="details-btn" onclick="showDetails(' + item.id + ')">Подробнее</button>';
+      html += '</td>';
+      html += '</tr>';
+    });
+
+    // Totals row
+    html += '<tr class="totals-row">';
+    html += '<td colspan="3" style="text-align: right; padding-right: 20px;">Всего:</td>';
+    html += '<td class="quantity-cell total-cell quantity-high" style="font-size: 16px;">' + data.grandTotal.toLocaleString('ru-RU') + '</td>';
+    html += '<td></td>';
+    html += '</tr>';
+
+    tableBody.innerHTML = html;
+  }
+
+  function escapeHtml(str) {
+    if (!str) return '';
+    return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#039;');
+  }
+
+  function showDetails(rowId) {
+    const item = productsData.find(p => p.id === rowId);
+    if (!item) return;
+
+    document.getElementById('modalTitle').textContent = 'Информация: ' + item.productName;
+
+    const productInfo = document.getElementById('productInfo');
+    productInfo.innerHTML =
+      '<p><strong>Товар:</strong> ' + escapeHtml(item.productName) + '</p>' +
+      '<p><strong>Категория:</strong> ' + escapeHtml(item.category) + '</p>' +
+      '<p><strong>Номер в таблице:</strong> ' + item.id + '</p>';
+
+    const warehouseList = document.getElementById('warehouseList');
+    let warehouseHtml = '';
+
+    if (item.warehouseDetails && item.warehouseDetails.length > 0) {
+      item.warehouseDetails.forEach(warehouse => {
+        const qtyClass = warehouse.quantity === 0 ? 'quantity-zero' :
+                        warehouse.quantity < 10 ? 'quantity-low' : 'quantity-high';
+        warehouseHtml += '<div class="warehouse-item">';
+        warehouseHtml += '<span class="warehouse-name">' + escapeHtml(warehouse.name) + '</span>';
+        warehouseHtml += '<span class="warehouse-quantity ' + qtyClass + '">' + warehouse.quantity + ' шт.</span>';
+        warehouseHtml += '</div>';
+      });
+    } else {
+      warehouseHtml = '<div style="text-align: center; padding: 20px; color: #9ca3af;">Нет данных по складам</div>';
+    }
+
+    warehouseList.innerHTML = warehouseHtml;
+    document.getElementById('totalDetails').textContent = 'Общий остаток: ' + item.totalRemainder + ' шт.';
+
+    document.getElementById('detailsModal').classList.add('active');
+  }
+
+  function closeDetailsModal() {
+    document.getElementById('detailsModal').classList.remove('active');
+  }
+
+  function showImage(src, event) {
+    event.stopPropagation();
+    if (!src || src.includes('no-image')) return;
+
+    document.getElementById('imageModalImg').src = src;
+    document.getElementById('imageModal').classList.add('active');
+  }
+
+  function closeImageModal() {
+    document.getElementById('imageModal').classList.remove('active');
+  }
+
+  function uploadImage(rowId, productName, safeName) {
+    currentProduct.rowId = rowId;
+    currentProduct.productName = productName;
+    currentProduct.safeName = safeName;
+    document.getElementById('imageFileInput').click();
+  }
+
+  function replaceImage(rowId, productName, safeName) {
+    uploadImage(rowId, productName, safeName);
+  }
+
+  document.getElementById('imageFileInput').addEventListener('change', function(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    const validTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+    if (!validTypes.includes(file.type)) {
+      showNotification('Ошибка: разрешены только изображения (JPEG, PNG, GIF, WebP)', 'error');
+      return;
+    }
+
+    const maxSize = 5 * 1024 * 1024;
+    if (file.size > maxSize) {
+      showNotification('Ошибка: файл слишком большой (максимум 5MB)', 'error');
+      return;
+    }
+
+    uploadFile(file);
+    e.target.value = '';
+  });
+
+  function uploadFile(file) {
+    const formData = new FormData();
+    formData.append('image', file);
+    formData.append('product_id', currentProduct.rowId);
+    formData.append('product_name', currentProduct.productName);
+    formData.append('safe_product_name', currentProduct.safeName);
+
+    const progressContainer = document.getElementById('uploadProgressContainer');
+    const progressFill = document.getElementById('progressFill');
+    const progressText = document.getElementById('progressText');
+
+    progressContainer.style.display = 'block';
+    progressFill.style.width = '0%';
+    progressText.textContent = '0%';
+
+    const xhr = new XMLHttpRequest();
+
+    xhr.upload.addEventListener('progress', function(e) {
+      if (e.lengthComputable) {
+        const percent = (e.loaded / e.total) * 100;
+        progressFill.style.width = percent + '%';
+        progressText.textContent = Math.round(percent) + '%';
+      }
+    });
+
+    xhr.addEventListener('load', function() {
+      progressContainer.style.display = 'none';
+
+      if (xhr.status === 200) {
+        try {
+          const response = JSON.parse(xhr.responseText);
+          if (response.success) {
+            showNotification('Фото успешно загружено!', 'success');
+            setTimeout(() => location.reload(), 1000);
+          } else {
+            showNotification('Ошибка: ' + response.message, 'error');
+          }
+        } catch (e) {
+          showNotification('Ошибка при обработке ответа сервера', 'error');
+        }
+      } else {
+        showNotification('Ошибка сервера: ' + xhr.status, 'error');
+      }
+    });
+
+    xhr.addEventListener('error', function() {
+      progressContainer.style.display = 'none';
+      showNotification('Ошибка сети. Проверьте подключение.', 'error');
+    });
+
+    xhr.open('POST', '/pos/api/upload');
+    xhr.send(formData);
+  }
+
+  function showNotification(message, type) {
+    const notification = document.getElementById('uploadNotification');
+    notification.textContent = message;
+    notification.className = 'upload-notification ' + type;
+    notification.style.display = 'block';
+
+    setTimeout(() => {
+      notification.style.display = 'none';
+    }, 5000);
+  }
+
+  // Close modals on ESC
+  document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') {
+      closeDetailsModal();
+      closeImageModal();
+    }
+  });
+
+  // Close details modal on backdrop click
+  document.getElementById('detailsModal').addEventListener('click', function(e) {
+    if (e.target === this) closeDetailsModal();
+  });
+
+  // Event delegation for table clicks
+  document.getElementById('tableBody').addEventListener('click', function(e) {
+    const target = e.target.closest('[data-action]');
+    if (!target) return;
+
+    const action = target.dataset.action;
+
+    if (action === 'preview') {
+      e.stopPropagation();
+      const src = target.src;
+      if (src && !src.includes('no-image')) {
+        document.getElementById('imageModalImg').src = src;
+        document.getElementById('imageModal').classList.add('active');
+      }
+    } else if (action === 'replace' || action === 'upload') {
+      const id = parseInt(target.dataset.id);
+      const name = target.dataset.name;
+      const safe = target.dataset.safe;
+      uploadImage(id, name, safe);
+    }
+  });
+</script>
+`
+}) %>

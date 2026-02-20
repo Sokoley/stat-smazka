@@ -1,0 +1,429 @@
+<%- include('../layouts/main', { title, body: `
+  <div class="space-y-6">
+    <div class="flex items-center justify-between flex-wrap gap-4">
+      <h2 class="text-2xl font-bold text-gray-900 dark:text-white">Прогнозная потребность</h2>
+    </div>
+
+    ${error ? `
+      <div class="bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 rounded-lg p-4">
+        <p class="text-red-600 dark:text-red-400">${error}</p>
+        <a href="/admin/settings/ozon" class="inline-block mt-2 text-sm text-blue-600 dark:text-blue-400 hover:underline">Перейти к настройкам</a>
+      </div>
+    ` : `
+      <div class="card">
+        <!-- Controls -->
+        <div class="flex items-center gap-4 flex-wrap mb-4">
+          <div class="flex items-center gap-2">
+            <label for="daysSelect" class="text-sm text-gray-600 dark:text-gray-400">Период (дней):</label>
+            <select id="daysSelect" class="input-field !w-auto !py-1.5 text-sm">
+              <option value="7">7 дней</option>
+              <option value="14">14 дней</option>
+              <option value="28" selected>28 дней</option>
+              <option value="30">30 дней</option>
+              <option value="60">60 дней</option>
+              <option value="90">90 дней</option>
+            </select>
+          </div>
+          <div class="flex items-center gap-2">
+            <label for="categoryFilter" class="text-sm text-gray-600 dark:text-gray-400">Категория:</label>
+            <select id="categoryFilter" class="input-field !w-auto !py-1.5 text-sm">
+              <option value="">Все категории</option>
+            </select>
+          </div>
+          <button id="generateReport" class="btn-primary !py-1.5 text-sm">Сгенерировать отчёт</button>
+          <button id="downloadXls" class="bg-green-600 hover:bg-green-700 text-white font-medium py-1.5 px-4 rounded-lg transition-colors text-sm" style="display: none;">Скачать XLS (потребность > 0)</button>
+        </div>
+
+        <!-- Search -->
+        <div class="flex items-center gap-4 flex-wrap mb-4" id="searchContainer" style="display: none;">
+          <div class="flex items-center gap-2">
+            <label for="searchInput" class="text-sm text-gray-600 dark:text-gray-400">Поиск:</label>
+            <input type="text" id="searchInput" class="input-field !w-64 !py-1.5 text-sm" placeholder="Артикул или название...">
+          </div>
+          <div class="flex items-center gap-2">
+            <label for="pageSizeSelect" class="text-sm text-gray-600 dark:text-gray-400">Показать:</label>
+            <select id="pageSizeSelect" class="input-field !w-auto !py-1.5 text-sm">
+              <option value="25" selected>25</option>
+              <option value="50">50</option>
+              <option value="100">100</option>
+              <option value="-1">Все</option>
+            </select>
+          </div>
+        </div>
+
+        <div id="accountsInfo" class="text-sm text-gray-500 dark:text-gray-400 mb-2">
+          <strong>Аккаунты:</strong> ${accounts.join(', ')}
+        </div>
+
+        <div id="periodInfo" class="text-sm text-gray-500 dark:text-gray-400 mb-4" style="display: none;">
+          <strong>Период:</strong> <span id="reportPeriod">-</span>
+        </div>
+
+        <div class="overflow-x-auto -mx-6 px-6">
+          <table id="reportTable" class="w-full text-sm text-left min-w-[1000px]">
+            <thead class="text-xs text-gray-700 bg-gray-50 dark:bg-gray-700 dark:text-gray-400">
+              <tr>
+                <th class="px-3 py-3 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600 whitespace-nowrap" data-sort="offerId">
+                  Артикул<span class="sort-icon"></span>
+                </th>
+                <th class="px-3 py-3 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600 w-44" data-sort="productName">
+                  Название товара<span class="sort-icon"></span>
+                </th>
+                <th class="px-3 py-3 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600 whitespace-nowrap" data-sort="category">
+                  Категория<span class="sort-icon"></span>
+                </th>
+                <th class="px-3 py-3 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600 text-right whitespace-nowrap" data-sort="totalQuantity">
+                  Общие продажи<span class="sort-icon"></span>
+                </th>
+                <th class="px-3 py-3 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600 text-right whitespace-nowrap" data-sort="avgDailySales">
+                  Средние продажи<span class="sort-icon"></span>
+                </th>
+                <th class="px-3 py-3 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600 text-right whitespace-nowrap" data-sort="availableStock">
+                  Остатки на Ozon (шт)<span class="sort-icon"></span>
+                </th>
+                <th class="px-3 py-3 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600 text-right whitespace-nowrap" data-sort="transitStock">
+                  Товары в пути (шт)<span class="sort-icon"></span>
+                </th>
+                <th class="px-3 py-3 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600 text-right whitespace-nowrap" data-sort="freeStock">
+                  Свободный остаток (шт)<span class="sort-icon"></span>
+                </th>
+                <th class="px-3 py-3 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600 text-right whitespace-nowrap" data-sort="turnover">
+                  Оборачиваемость (дни)<span class="sort-icon"></span>
+                </th>
+                <th class="px-3 py-3 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600 text-right whitespace-nowrap" data-sort="forecastNeed">
+                  Потребность OZON 40дн<span class="sort-icon"></span>
+                </th>
+                <th class="px-3 py-3 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600 text-right whitespace-nowrap" data-sort="productionNeed">
+                  Потребность производства<span class="sort-icon"></span>
+                </th>
+              </tr>
+            </thead>
+            <tbody id="reportBody">
+              <tr>
+                <td colspan="11" class="px-3 py-8 text-center text-gray-500 dark:text-gray-400">
+                  Нажмите "Сгенерировать отчёт" для загрузки данных
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Pagination -->
+        <div id="pagination" class="flex items-center justify-between mt-4 flex-wrap gap-2" style="display: none;">
+          <div class="text-sm text-gray-500 dark:text-gray-400">
+            Показано <span id="showingFrom">0</span>-<span id="showingTo">0</span> из <span id="showingTotal">0</span>
+          </div>
+          <div class="flex items-center gap-2">
+            <button id="prevPage" class="px-3 py-1 text-sm bg-gray-100 dark:bg-gray-700 rounded hover:bg-gray-200 dark:hover:bg-gray-600 disabled:opacity-50" disabled>Назад</button>
+            <span id="pageInfo" class="text-sm text-gray-600 dark:text-gray-400">Страница 1</span>
+            <button id="nextPage" class="px-3 py-1 text-sm bg-gray-100 dark:bg-gray-700 rounded hover:bg-gray-200 dark:hover:bg-gray-600 disabled:opacity-50" disabled>Вперёд</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Loading overlay -->
+      <div id="loading" class="fixed inset-0 bg-black/50 z-50 items-center justify-center" style="display: none;">
+        <div class="bg-white dark:bg-gray-800 rounded-xl p-6 w-80 text-center">
+          <h5 class="text-lg font-semibold text-gray-900 dark:text-white mb-2">Генерация отчёта</h5>
+          <p id="statusText" class="text-sm text-gray-500 dark:text-gray-400 mb-4">Инициализация...</p>
+          <div class="h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden mb-2">
+            <div id="progressBar" class="h-full bg-green-500 transition-all duration-300" style="width: 0%"></div>
+          </div>
+          <p id="progressText" class="text-sm font-semibold text-gray-700 dark:text-gray-300">0%</p>
+          <p id="detailsText" class="text-xs text-gray-400 dark:text-gray-500 mt-2"></p>
+        </div>
+      </div>
+
+      <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+      <script src="https://cdn.jsdelivr.net/npm/file-saver@2.0.5/dist/FileSaver.min.js"></script>
+      <script>
+        document.addEventListener('DOMContentLoaded', function() {
+          let reportData = null;
+          let filteredData = null;
+          let sortColumn = 'totalQuantity';
+          let sortDirection = 'desc';
+          let currentPage = 1;
+          let pageSize = 25;
+
+          const generateBtn = document.getElementById('generateReport');
+          const downloadBtn = document.getElementById('downloadXls');
+          const daysSelect = document.getElementById('daysSelect');
+          const categoryFilter = document.getElementById('categoryFilter');
+          const searchInput = document.getElementById('searchInput');
+          const searchContainer = document.getElementById('searchContainer');
+          const pageSizeSelect = document.getElementById('pageSizeSelect');
+          const loading = document.getElementById('loading');
+          const progressBar = document.getElementById('progressBar');
+          const progressText = document.getElementById('progressText');
+          const statusText = document.getElementById('statusText');
+          const detailsText = document.getElementById('detailsText');
+          const periodInfo = document.getElementById('periodInfo');
+          const reportPeriod = document.getElementById('reportPeriod');
+          const reportBody = document.getElementById('reportBody');
+          const pagination = document.getElementById('pagination');
+
+          function updateProgress(percent, message, details = '') {
+            progressBar.style.width = percent + '%';
+            progressText.textContent = percent + '%';
+            if (message) statusText.textContent = message;
+            if (details) detailsText.textContent = details;
+
+            if (percent === 100) {
+              progressBar.style.background = '#10B981';
+            }
+          }
+
+          function showLoading() {
+            loading.style.display = 'flex';
+            progressBar.style.background = '#10B981';
+            updateProgress(0, 'Инициализация...', '');
+          }
+
+          function hideLoading() {
+            loading.style.display = 'none';
+          }
+
+          function showError(message) {
+            progressBar.style.background = '#EF4444';
+            progressBar.style.width = '100%';
+            progressText.textContent = 'Ошибка!';
+            statusText.textContent = message;
+            detailsText.textContent = 'Попробуйте позже';
+            setTimeout(hideLoading, 3000);
+          }
+
+          function renderTable(data) {
+            if (!data || data.length === 0) {
+              reportBody.innerHTML = '<tr><td colspan="11" class="px-4 py-8 text-center text-gray-500 dark:text-gray-400">Нет данных</td></tr>';
+              pagination.style.display = 'none';
+              return;
+            }
+
+            // Apply pagination
+            const totalItems = data.length;
+            const totalPages = pageSize === -1 ? 1 : Math.ceil(totalItems / pageSize);
+            currentPage = Math.min(currentPage, totalPages);
+            currentPage = Math.max(currentPage, 1);
+
+            let displayData = data;
+            if (pageSize !== -1) {
+              const start = (currentPage - 1) * pageSize;
+              const end = start + pageSize;
+              displayData = data.slice(start, end);
+            }
+
+            reportBody.innerHTML = displayData.map(row => \`
+              <tr class="bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 border-b border-gray-200 dark:border-gray-700">
+                <td class="px-3 py-3 font-medium text-gray-900 dark:text-white whitespace-nowrap">\${row.offerId}</td>
+                <td class="px-3 py-3 text-gray-700 dark:text-gray-300 w-44 max-w-[176px]" title="\${row.productName}"><div class="line-clamp-2">\${row.productName}</div></td>
+                <td class="px-3 py-3 text-gray-700 dark:text-gray-300 whitespace-nowrap">\${row.category}</td>
+                <td class="px-3 py-3 text-right text-gray-700 dark:text-gray-300">\${row.totalQuantity}</td>
+                <td class="px-3 py-3 text-right text-gray-700 dark:text-gray-300">\${row.avgDailySales.toFixed(2)}</td>
+                <td class="px-3 py-3 text-right text-gray-700 dark:text-gray-300">\${row.availableStock}</td>
+                <td class="px-3 py-3 text-right text-gray-700 dark:text-gray-300">\${row.transitStock}</td>
+                <td class="px-3 py-3 text-right text-gray-700 dark:text-gray-300">\${row.freeStock}</td>
+                <td class="px-3 py-3 text-right text-gray-700 dark:text-gray-300">\${row.turnover}</td>
+                <td class="px-3 py-3 text-right font-semibold \${row.forecastNeed > 0 ? 'text-orange-600 dark:text-orange-400' : 'text-gray-700 dark:text-gray-300'}">\${row.forecastNeed}</td>
+                <td class="px-3 py-3 text-right font-semibold \${row.productionNeed > 0 ? 'text-red-600 dark:text-red-400' : 'text-gray-700 dark:text-gray-300'}">\${row.productionNeed}</td>
+              </tr>
+            \`).join('');
+
+            // Update pagination info
+            if (pageSize !== -1 && totalItems > pageSize) {
+              const from = (currentPage - 1) * pageSize + 1;
+              const to = Math.min(currentPage * pageSize, totalItems);
+              document.getElementById('showingFrom').textContent = from;
+              document.getElementById('showingTo').textContent = to;
+              document.getElementById('showingTotal').textContent = totalItems;
+              document.getElementById('pageInfo').textContent = 'Страница ' + currentPage + ' из ' + totalPages;
+              document.getElementById('prevPage').disabled = currentPage === 1;
+              document.getElementById('nextPage').disabled = currentPage === totalPages;
+              pagination.style.display = 'flex';
+            } else {
+              pagination.style.display = 'none';
+            }
+          }
+
+          function applyFilters() {
+            if (!reportData) return;
+
+            const category = categoryFilter.value;
+            const search = searchInput.value.toLowerCase().trim();
+
+            filteredData = reportData.report.filter(row => {
+              if (category && row.category !== category) return false;
+              if (search) {
+                const matchOfferId = row.offerId.toLowerCase().includes(search);
+                const matchName = row.productName.toLowerCase().includes(search);
+                if (!matchOfferId && !matchName) return false;
+              }
+              return true;
+            });
+
+            currentPage = 1;
+            sortData();
+            renderTable(filteredData);
+          }
+
+          function sortData() {
+            if (!filteredData) return;
+
+            filteredData.sort((a, b) => {
+              let aVal = a[sortColumn];
+              let bVal = b[sortColumn];
+
+              if (typeof aVal === 'string') {
+                aVal = aVal.toLowerCase();
+                bVal = bVal.toLowerCase();
+              }
+
+              if (sortDirection === 'asc') {
+                return aVal > bVal ? 1 : aVal < bVal ? -1 : 0;
+              } else {
+                return aVal < bVal ? 1 : aVal > bVal ? -1 : 0;
+              }
+            });
+
+            // Update sort icons
+            document.querySelectorAll('[data-sort] .sort-icon').forEach(icon => {
+              icon.textContent = '';
+            });
+            const activeHeader = document.querySelector('[data-sort="' + sortColumn + '"] .sort-icon');
+            if (activeHeader) {
+              activeHeader.textContent = sortDirection === 'asc' ? ' ↑' : ' ↓';
+            }
+          }
+
+          // Sort headers
+          document.querySelectorAll('[data-sort]').forEach(th => {
+            th.addEventListener('click', function() {
+              const col = this.dataset.sort;
+              if (sortColumn === col) {
+                sortDirection = sortDirection === 'asc' ? 'desc' : 'asc';
+              } else {
+                sortColumn = col;
+                sortDirection = 'desc';
+              }
+              sortData();
+              renderTable(filteredData);
+            });
+          });
+
+          categoryFilter.addEventListener('change', applyFilters);
+          searchInput.addEventListener('input', applyFilters);
+
+          pageSizeSelect.addEventListener('change', function() {
+            pageSize = parseInt(this.value);
+            currentPage = 1;
+            renderTable(filteredData);
+          });
+
+          document.getElementById('prevPage').addEventListener('click', function() {
+            if (currentPage > 1) {
+              currentPage--;
+              renderTable(filteredData);
+            }
+          });
+
+          document.getElementById('nextPage').addEventListener('click', function() {
+            const totalPages = Math.ceil(filteredData.length / pageSize);
+            if (currentPage < totalPages) {
+              currentPage++;
+              renderTable(filteredData);
+            }
+          });
+
+          generateBtn.addEventListener('click', async function() {
+            showLoading();
+            let progress = 0;
+            const progressInterval = setInterval(() => {
+              if (progress < 90) {
+                progress += 1;
+                updateProgress(progress, 'Загрузка данных с OZON...', 'Получение продаж и остатков');
+              }
+            }, 200);
+
+            try {
+              const response = await fetch('/ozon/forecast/generate', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ days: parseInt(daysSelect.value) }),
+              });
+
+              clearInterval(progressInterval);
+              updateProgress(95, 'Обработка данных...', 'Расчёт потребности');
+
+              const result = await response.json();
+
+              if (result.status === 'success') {
+                reportData = result.data;
+                updateProgress(100, 'Готово!', 'Отчёт сгенерирован');
+
+                // Update categories
+                categoryFilter.innerHTML = '<option value="">Все категории</option>';
+                reportData.categories.forEach(cat => {
+                  categoryFilter.innerHTML += '<option value="' + cat + '">' + cat + '</option>';
+                });
+
+                // Update period info
+                reportPeriod.textContent = reportData.startDate + ' - ' + reportData.endDate + ' (' + reportData.totalDays + ' дней)';
+                periodInfo.style.display = 'block';
+                searchContainer.style.display = 'flex';
+
+                // Show download button
+                downloadBtn.style.display = 'inline-block';
+
+                // Apply filters and render
+                applyFilters();
+
+                setTimeout(hideLoading, 500);
+              } else {
+                throw new Error(result.message);
+              }
+            } catch (error) {
+              clearInterval(progressInterval);
+              showError(error.message);
+            }
+          });
+
+          downloadBtn.addEventListener('click', function() {
+            if (!filteredData || filteredData.length === 0) {
+              alert('Нет данных для экспорта');
+              return;
+            }
+
+            const dataToExport = filteredData.filter(row => row.forecastNeed > 0);
+            if (dataToExport.length === 0) {
+              alert('Нет данных с потребностью > 0');
+              return;
+            }
+
+            const wsData = [
+              ['Артикул', 'Название товара', 'Категория', 'Общие продажи', 'Средние продажи', 'Остатки на Ozon (шт)', 'Товары в пути (шт)', 'Свободный остаток (шт)', 'Текущая оборачиваемость (дни)', 'Потребность на OZON на 40дн (шт)', 'Потребность производства (шт)'],
+              ...dataToExport.map(row => [
+                row.offerId,
+                row.productName,
+                row.category,
+                row.totalQuantity,
+                row.avgDailySales.toFixed(2),
+                row.availableStock,
+                row.transitStock,
+                row.freeStock,
+                row.turnover,
+                row.forecastNeed,
+                row.productionNeed,
+              ]),
+            ];
+
+            const ws = XLSX.utils.aoa_to_sheet(wsData);
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, 'Ozon_Report');
+            const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+            saveAs(new Blob([wbout], { type: 'application/octet-stream' }),
+              'Ozon_Report_Потребность_' + new Date().toISOString().slice(0, 10) + '.xlsx');
+          });
+        });
+      </script>
+    `}
+  </div>
+` }) %>

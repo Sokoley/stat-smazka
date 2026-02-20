@@ -1,0 +1,680 @@
+<%- include('../layouts/main', { title, body: `
+  <div class="space-y-8 max-w-5xl">
+    <div class="flex items-center justify-between">
+      <h2 class="text-2xl font-bold text-white glow-text">Документация проекта</h2>
+      <div class="flex gap-2">
+        <span class="px-3 py-1 text-sm bg-blue-500/30 text-blue-200 rounded-full border border-blue-400/30">
+          v1.0.0
+        </span>
+        <span class="px-3 py-1 text-sm bg-green-500/30 text-green-200 rounded-full border border-green-400/30">
+          Node.js + Express
+        </span>
+      </div>
+    </div>
+
+    <!-- Quick Stats -->
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div class="glass-card p-4">
+        <div class="text-2xl font-bold text-highlight-blue">${stats.activeAccounts}</div>
+        <div class="text-sm text-white/60">Активных аккаунтов OZON</div>
+      </div>
+      <div class="glass-card p-4">
+        <div class="text-2xl font-bold text-highlight-green">${stats.totalUsers}</div>
+        <div class="text-sm text-white/60">Пользователей</div>
+      </div>
+      <div class="glass-card p-4">
+        <div class="text-2xl font-bold text-purple-300">SQLite</div>
+        <div class="text-sm text-white/60">База данных</div>
+      </div>
+      <div class="glass-card p-4">
+        <div class="text-2xl font-bold text-highlight-orange">EJS</div>
+        <div class="text-sm text-white/60">Шаблонизатор</div>
+      </div>
+    </div>
+
+    <!-- Table of Contents -->
+    <div class="glass-card p-6">
+      <h3 class="text-lg font-semibold text-white mb-4">Содержание</h3>
+      <nav class="grid md:grid-cols-2 gap-2">
+        <a href="#overview" class="text-blue-300 hover:text-blue-200 transition-colors">1. Обзор проекта</a>
+        <a href="#stack" class="text-blue-300 hover:text-blue-200 transition-colors">2. Технологический стек</a>
+        <a href="#structure" class="text-blue-300 hover:text-blue-200 transition-colors">3. Структура проекта</a>
+        <a href="#database" class="text-blue-300 hover:text-blue-200 transition-colors">4. База данных</a>
+        <a href="#ozon-api" class="text-blue-300 hover:text-blue-200 transition-colors">5. Интеграция с OZON API</a>
+        <a href="#coinvest" class="text-blue-300 hover:text-blue-200 transition-colors">6. Модуль "Соинвест"</a>
+        <a href="#forecast" class="text-blue-300 hover:text-blue-200 transition-colors">7. Модуль "Прогнозная потребность"</a>
+        <a href="#supplies" class="text-blue-300 hover:text-blue-200 transition-colors">8. Модуль "Поставки"</a>
+        <a href="#formulas" class="text-blue-300 hover:text-blue-200 transition-colors">9. Формулы расчётов</a>
+        <a href="#api-endpoints" class="text-blue-300 hover:text-blue-200 transition-colors">10. API Endpoints</a>
+        <a href="#setup" class="text-blue-300 hover:text-blue-200 transition-colors">11. Установка и настройка</a>
+      </nav>
+    </div>
+
+    <!-- 1. Overview -->
+    <div id="overview" class="glass-card p-6">
+      <h3 class="text-lg font-semibold text-white mb-4">1. Обзор проекта</h3>
+      <div class="text-white/85">
+        <p class="mb-4">
+          <strong class="text-white">Маркетплейс Статистика</strong> — это веб-приложение для анализа продаж и управления товарными запасами
+          на маркетплейсе OZON. Система позволяет:
+        </p>
+        <ul class="list-disc pl-6 space-y-2">
+          <li>Анализировать расходы на соинвестирование (скидки, бонусы)</li>
+          <li>Отслеживать оборачиваемость товаров</li>
+          <li>Рассчитывать прогнозную потребность на 40 дней</li>
+          <li>Определять потребность к производству</li>
+          <li>Управлять несколькими аккаунтами OZON</li>
+          <li>Экспортировать данные в Excel</li>
+          <li>Работать с заявками на поставку OZON по всем активным аккаунтам</li>
+        </ul>
+        <div class="mt-4 p-3 glass rounded-lg text-sm">
+          <strong class="text-white">Примечание:</strong> Система поддерживает работу с несколькими аккаунтами OZON одновременно.
+          Данные агрегируются по артикулу (offer_id) из всех активных аккаунтов.
+        </div>
+      </div>
+    </div>
+
+    <!-- 2. Stack -->
+    <div id="stack" class="glass-card p-6">
+      <h3 class="text-lg font-semibold text-white mb-4">2. Технологический стек</h3>
+      <div class="grid md:grid-cols-2 gap-6">
+        <div>
+          <h4 class="font-medium text-white mb-3">Backend</h4>
+          <ul class="space-y-2 text-white/85">
+            <li class="flex items-center gap-2">
+              <span class="w-2 h-2 bg-green-400 rounded-full"></span>
+              <strong>Node.js</strong> — runtime
+            </li>
+            <li class="flex items-center gap-2">
+              <span class="w-2 h-2 bg-green-400 rounded-full"></span>
+              <strong>Express.js</strong> — веб-фреймворк
+            </li>
+            <li class="flex items-center gap-2">
+              <span class="w-2 h-2 bg-green-400 rounded-full"></span>
+              <strong>better-sqlite3</strong> — база данных
+            </li>
+            <li class="flex items-center gap-2">
+              <span class="w-2 h-2 bg-green-400 rounded-full"></span>
+              <strong>bcrypt</strong> — хеширование паролей
+            </li>
+            <li class="flex items-center gap-2">
+              <span class="w-2 h-2 bg-green-400 rounded-full"></span>
+              <strong>express-session</strong> — сессии
+            </li>
+          </ul>
+        </div>
+        <div>
+          <h4 class="font-medium text-white mb-3">Frontend</h4>
+          <ul class="space-y-2 text-white/85">
+            <li class="flex items-center gap-2">
+              <span class="w-2 h-2 bg-blue-400 rounded-full"></span>
+              <strong>EJS</strong> — шаблонизатор
+            </li>
+            <li class="flex items-center gap-2">
+              <span class="w-2 h-2 bg-blue-400 rounded-full"></span>
+              <strong>Tailwind CSS</strong> — стилизация
+            </li>
+            <li class="flex items-center gap-2">
+              <span class="w-2 h-2 bg-blue-400 rounded-full"></span>
+              <strong>Chart.js</strong> — графики
+            </li>
+            <li class="flex items-center gap-2">
+              <span class="w-2 h-2 bg-blue-400 rounded-full"></span>
+              <strong>XLSX.js</strong> — экспорт в Excel
+            </li>
+            <li class="flex items-center gap-2">
+              <span class="w-2 h-2 bg-blue-400 rounded-full"></span>
+              <strong>Vanilla JS</strong> — без фреймворков
+            </li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <!-- 3. Structure -->
+    <div id="structure" class="glass-card p-6">
+      <h3 class="text-lg font-semibold text-white mb-4">3. Структура проекта</h3>
+      <pre class="bg-gray-900/80 text-gray-100 p-4 rounded-lg overflow-x-auto text-sm"><code>/stat
+├── src/
+│   ├── app.js                    # Точка входа Express
+│   ├── db/
+│   │   ├── database.js           # Инициализация SQLite
+│   │   └── init.js               # Создание таблиц
+│   ├── middleware/
+│   │   └── auth.js               # Аутентификация
+│   ├── routes/
+│   │   ├── auth.js               # Вход/выход
+│   │   ├── dashboard.js          # Главная
+│   │   ├── admin.js              # Пользователи, документация
+│   │   ├── settings.js           # Настройки OZON аккаунтов
+│   │   └── ozon.js               # Соинвест, Прогноз, Поставки
+│   ├── services/
+│   │   └── ozon.js               # Бизнес-логика OZON API
+│   ├── views/
+│   │   ├── layouts/main.ejs      # Основной layout
+│   │   ├── partials/             # Sidebar, Header
+│   │   ├── admin/                # Админ-страницы
+│   │   ├── auth/                 # Страницы авторизации
+│   │   └── ozon/                 # Соинвест, Прогноз
+│   └── public/
+│       └── css/styles.css        # Tailwind CSS
+├── data/
+│   └── stat.db                   # SQLite база данных
+├── package.json
+└── tailwind.config.js</code></pre>
+    </div>
+
+    <!-- 4. Database -->
+    <div id="database" class="glass-card p-6">
+      <h3 class="text-lg font-semibold text-white mb-4">4. База данных</h3>
+      <div class="space-y-6">
+        <div>
+          <h4 class="font-medium text-white mb-2">Таблица: users</h4>
+          <div class="overflow-x-auto">
+            <table class="glass-table w-full text-sm">
+              <thead>
+                <tr>
+                  <th class="px-4 py-2 text-left">Поле</th>
+                  <th class="px-4 py-2 text-left">Тип</th>
+                  <th class="px-4 py-2 text-left">Описание</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr><td class="px-4 py-2 font-mono text-purple-300">id</td><td class="px-4 py-2">INTEGER PK</td><td class="px-4 py-2">Идентификатор</td></tr>
+                <tr><td class="px-4 py-2 font-mono text-purple-300">email</td><td class="px-4 py-2">TEXT UNIQUE</td><td class="px-4 py-2">Email (логин)</td></tr>
+                <tr><td class="px-4 py-2 font-mono text-purple-300">password</td><td class="px-4 py-2">TEXT</td><td class="px-4 py-2">Хеш пароля (bcrypt)</td></tr>
+                <tr><td class="px-4 py-2 font-mono text-purple-300">name</td><td class="px-4 py-2">TEXT</td><td class="px-4 py-2">Имя пользователя</td></tr>
+                <tr><td class="px-4 py-2 font-mono text-purple-300">is_admin</td><td class="px-4 py-2">INTEGER</td><td class="px-4 py-2">Флаг администратора (0/1)</td></tr>
+                <tr><td class="px-4 py-2 font-mono text-purple-300">is_active</td><td class="px-4 py-2">INTEGER</td><td class="px-4 py-2">Флаг активности (0/1)</td></tr>
+                <tr><td class="px-4 py-2 font-mono text-purple-300">created_at</td><td class="px-4 py-2">DATETIME</td><td class="px-4 py-2">Дата создания</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div>
+          <h4 class="font-medium text-white mb-2">Таблица: marketplace_settings</h4>
+          <div class="overflow-x-auto">
+            <table class="glass-table w-full text-sm">
+              <thead>
+                <tr>
+                  <th class="px-4 py-2 text-left">Поле</th>
+                  <th class="px-4 py-2 text-left">Тип</th>
+                  <th class="px-4 py-2 text-left">Описание</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr><td class="px-4 py-2 font-mono text-purple-300">id</td><td class="px-4 py-2">INTEGER PK</td><td class="px-4 py-2">Идентификатор</td></tr>
+                <tr><td class="px-4 py-2 font-mono text-purple-300">marketplace</td><td class="px-4 py-2">TEXT UNIQUE</td><td class="px-4 py-2">Код маркетплейса (например, <code>ozon</code>)</td></tr>
+                <tr><td class="px-4 py-2 font-mono text-purple-300">client_id</td><td class="px-4 py-2">TEXT</td><td class="px-4 py-2">Client ID по умолчанию</td></tr>
+                <tr><td class="px-4 py-2 font-mono text-purple-300">api_key</td><td class="px-4 py-2">TEXT</td><td class="px-4 py-2">API Key по умолчанию</td></tr>
+                <tr><td class="px-4 py-2 font-mono text-purple-300">is_active</td><td class="px-4 py-2">INTEGER</td><td class="px-4 py-2">Флаг активности (0/1)</td></tr>
+                <tr><td class="px-4 py-2 font-mono text-purple-300">updated_at</td><td class="px-4 py-2">DATETIME</td><td class="px-4 py-2">Дата последнего обновления</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div>
+          <h4 class="font-medium text-white mb-2">Таблица: ozon_accounts</h4>
+          <div class="overflow-x-auto">
+            <table class="glass-table w-full text-sm">
+              <thead>
+                <tr>
+                  <th class="px-4 py-2 text-left">Поле</th>
+                  <th class="px-4 py-2 text-left">Тип</th>
+                  <th class="px-4 py-2 text-left">Описание</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr><td class="px-4 py-2 font-mono text-purple-300">id</td><td class="px-4 py-2">INTEGER PK</td><td class="px-4 py-2">Идентификатор</td></tr>
+                <tr><td class="px-4 py-2 font-mono text-purple-300">name</td><td class="px-4 py-2">TEXT</td><td class="px-4 py-2">Название аккаунта (ВМПАВТО, РМ, и т.д.)</td></tr>
+                <tr><td class="px-4 py-2 font-mono text-purple-300">client_id</td><td class="px-4 py-2">TEXT</td><td class="px-4 py-2">Client ID из OZON Seller API</td></tr>
+                <tr><td class="px-4 py-2 font-mono text-purple-300">api_key</td><td class="px-4 py-2">TEXT</td><td class="px-4 py-2">API Key из OZON Seller API</td></tr>
+                <tr><td class="px-4 py-2 font-mono text-purple-300">is_active</td><td class="px-4 py-2">INTEGER</td><td class="px-4 py-2">Флаг активности (0/1)</td></tr>
+                <tr><td class="px-4 py-2 font-mono text-purple-300">created_at</td><td class="px-4 py-2">DATETIME</td><td class="px-4 py-2">Дата создания</td></tr>
+                <tr><td class="px-4 py-2 font-mono text-purple-300">updated_at</td><td class="px-4 py-2">DATETIME</td><td class="px-4 py-2">Дата обновления</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="p-3 glass rounded-lg text-sm border border-yellow-400/30">
+          <strong class="text-yellow-300">Учётные данные по умолчанию:</strong><br>
+          Email: <code class="bg-white/10 px-1 rounded">admin@example.com</code><br>
+          Пароль: <code class="bg-white/10 px-1 rounded">admin123</code>
+        </div>
+      </div>
+    </div>
+
+    <!-- 5. OZON API -->
+    <div id="ozon-api" class="glass-card p-6">
+      <h3 class="text-lg font-semibold text-white mb-4">5. Интеграция с OZON API</h3>
+      <div class="space-y-4 text-white/85">
+        <p>Система использует следующие эндпоинты OZON Seller API:</p>
+
+        <div class="space-y-3">
+          <div class="p-3 glass rounded-lg">
+            <div class="flex items-center gap-2 mb-1">
+              <span class="px-2 py-0.5 text-xs font-medium bg-green-500/30 text-green-200 rounded border border-green-400/30">POST</span>
+              <code class="text-sm font-mono text-purple-300">/v1/finance/balance</code>
+            </div>
+            <p class="text-sm">Получение финансового баланса (соинвест, расходы на рекламу, логистику)</p>
+          </div>
+
+          <div class="p-3 glass rounded-lg">
+            <div class="flex items-center gap-2 mb-1">
+              <span class="px-2 py-0.5 text-xs font-medium bg-green-500/30 text-green-200 rounded border border-green-400/30">POST</span>
+              <code class="text-sm font-mono text-purple-300">/v2/posting/fbo/list</code>
+            </div>
+            <p class="text-sm">Получение списка FBO-отправлений (продаж) за период</p>
+          </div>
+
+          <div class="p-3 glass rounded-lg">
+            <div class="flex items-center gap-2 mb-1">
+              <span class="px-2 py-0.5 text-xs font-medium bg-green-500/30 text-green-200 rounded border border-green-400/30">POST</span>
+              <code class="text-sm font-mono text-purple-300">/v1/analytics/stocks</code>
+            </div>
+            <p class="text-sm">Получение данных об остатках на складах OZON</p>
+          </div>
+
+          <div class="p-3 glass rounded-lg">
+            <div class="flex items-center gap-2 mb-1">
+              <span class="px-2 py-0.5 text-xs font-medium bg-green-500/30 text-green-200 rounded border border-green-400/30">POST</span>
+              <code class="text-sm font-mono text-purple-300">/v3/supply-order/list</code>
+            </div>
+            <p class="text-sm">Получение списка активных заявок на поставку</p>
+          </div>
+
+          <div class="p-3 glass rounded-lg">
+            <div class="flex items-center gap-2 mb-1">
+              <span class="px-2 py-0.5 text-xs font-medium bg-green-500/30 text-green-200 rounded border border-green-400/30">POST</span>
+              <code class="text-sm font-mono text-purple-300">/v3/supply-order/get</code>
+            </div>
+            <p class="text-sm">Получение подробной информации по заявкам (склады, таймслоты, статусы)</p>
+          </div>
+
+          <div class="p-3 glass rounded-lg">
+            <div class="flex items-center gap-2 mb-1">
+              <span class="px-2 py-0.5 text-xs font-medium bg-green-500/30 text-green-200 rounded border border-green-400/30">POST</span>
+              <code class="text-sm font-mono text-purple-300">/v1/supply-order/bundle</code>
+            </div>
+            <p class="text-sm">Получение состава поставок (SKU и количества) по заявкам</p>
+          </div>
+        </div>
+
+        <div class="p-3 glass rounded-lg text-sm border border-blue-400/30">
+          <strong class="text-blue-300">Внешний API склада:</strong><br>
+          <code class="font-mono text-purple-300">https://lkk.smazka.ru/apiv1/get/stock</code><br>
+          Используется для получения свободных остатков и категорий товаров на складе производства.
+        </div>
+
+        <h4 class="font-medium text-white mt-4">Параллельные запросы</h4>
+        <p class="text-sm">
+          Для ускорения загрузки данных система использует параллельные запросы:
+        </p>
+        <ul class="list-disc pl-6 space-y-1 text-sm">
+          <li>До 10 параллельных запросов за каждый день (batch processing)</li>
+          <li>Параллельная обработка всех аккаунтов OZON</li>
+          <li>Автоматический retry при ошибке 429 (rate limit) до 3 раз</li>
+          <li>Кеширование данных склада на 5 минут</li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- 6. Coinvest -->
+    <div id="coinvest" class="glass-card p-6">
+      <h3 class="text-lg font-semibold text-white mb-4">6. Модуль "Соинвест"</h3>
+      <div class="space-y-4 text-white/85">
+        <p>
+          Модуль анализирует финансовые данные OZON: продажи, расходы и соинвестирование
+          (скидки, которые компенсирует OZON).
+        </p>
+
+        <h4 class="font-medium text-white">Режимы просмотра:</h4>
+        <ul class="list-disc pl-6 space-y-1">
+          <li><strong class="text-white">По дням</strong> — детализация по каждому дню (по умолчанию 7 дней)</li>
+          <li><strong class="text-white">По неделям</strong> — агрегация по календарным неделям (ISO)</li>
+          <li><strong class="text-white">По месяцам</strong> — агрегация по календарным месяцам</li>
+        </ul>
+
+        <h4 class="font-medium text-white mt-4">Категории расходов:</h4>
+        <div class="grid md:grid-cols-2 gap-4">
+          <div>
+            <p class="text-sm font-medium mb-2 text-white">Реклама:</p>
+            <ul class="text-sm space-y-1 text-white/70">
+              <li>• Продвижение бренда</li>
+              <li>• Реклама на сайте</li>
+              <li>• Оплата за клик</li>
+              <li>• Премиум-подписки</li>
+              <li>• Бонусы за отзывы</li>
+            </ul>
+          </div>
+          <div>
+            <p class="text-sm font-medium mb-2 text-white">Логистика + FBO:</p>
+            <ul class="text-sm space-y-1 text-white/70">
+              <li>• Доставка</li>
+              <li>• Обратная логистика</li>
+              <li>• Обработка на складе</li>
+              <li>• Размещение товаров</li>
+              <li>• Эквайринг</li>
+            </ul>
+          </div>
+        </div>
+
+        <h4 class="font-medium text-white mt-4">Соинвест:</h4>
+        <p class="text-sm">
+          Соинвест — это баллы, которые OZON компенсирует продавцу за участие в акциях.
+          Рассчитывается из поля <code class="bg-white/10 px-1 rounded">points_for_discounts</code>
+          в ответе API для продаж и возвратов.
+        </p>
+      </div>
+    </div>
+
+    <!-- 7. Forecast -->
+    <div id="forecast" class="glass-card p-6">
+      <h3 class="text-lg font-semibold text-white mb-4">7. Модуль "Прогнозная потребность"</h3>
+      <div class="space-y-4 text-white/85">
+        <p>
+          Модуль рассчитывает потребность в товарах на OZON и на производстве
+          на основе анализа продаж за выбранный период.
+        </p>
+
+        <h4 class="font-medium text-white">Колонки отчёта:</h4>
+        <div class="overflow-x-auto">
+          <table class="glass-table w-full text-sm">
+            <thead>
+              <tr>
+                <th class="px-4 py-2 text-left">Колонка</th>
+                <th class="px-4 py-2 text-left">Источник данных</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr><td class="px-4 py-2">Артикул</td><td class="px-4 py-2">offer_id из FBO-отправлений</td></tr>
+              <tr><td class="px-4 py-2">Название товара</td><td class="px-4 py-2">OZON API stocks</td></tr>
+              <tr><td class="px-4 py-2">Категория</td><td class="px-4 py-2">API склада (lkk.smazka.ru)</td></tr>
+              <tr><td class="px-4 py-2">Общие продажи</td><td class="px-4 py-2">Сумма quantity из FBO-отправлений</td></tr>
+              <tr><td class="px-4 py-2">Средние продажи</td><td class="px-4 py-2">Общие продажи / кол-во дней</td></tr>
+              <tr><td class="px-4 py-2">Остатки на OZON</td><td class="px-4 py-2">available_stock_count из stocks API</td></tr>
+              <tr><td class="px-4 py-2">Товары в пути</td><td class="px-4 py-2">transit_stock_count из stocks API</td></tr>
+              <tr><td class="px-4 py-2">Свободный остаток</td><td class="px-4 py-2">API склада (СвободныйОстаток)</td></tr>
+              <tr><td class="px-4 py-2">Оборачиваемость</td><td class="px-4 py-2">Остатки OZON / Средние продажи</td></tr>
+              <tr><td class="px-4 py-2">Потребность OZON</td><td class="px-4 py-2">Расчёт (см. формулы)</td></tr>
+              <tr><td class="px-4 py-2">К производству</td><td class="px-4 py-2">Расчёт (см. формулы)</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h4 class="font-medium text-white mt-4">Функциональность:</h4>
+        <ul class="list-disc pl-6 space-y-1">
+          <li>Выбор периода анализа: 7, 14, 28, 30, 60, 90 дней</li>
+          <li>Фильтрация по категории товаров</li>
+          <li>Поиск по артикулу и названию</li>
+          <li>Сортировка по любой колонке</li>
+          <li>Пагинация (25/50/100 записей или все)</li>
+          <li>Экспорт в Excel (только товары с потребностью > 0)</li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- 8. Supplies -->
+    <div id="supplies" class="glass-card p-6">
+      <h3 class="text-lg font-semibold text-white mb-4">8. Модуль "Поставки"</h3>
+      <div class="space-y-4 text-white/85">
+        <p>
+          Модуль отображает активные заявки на поставку OZON по всем активным аккаунтам и позволяет
+          быстро оценить статус и состав каждой заявки.
+        </p>
+
+        <h4 class="font-medium text-white">Источник данных:</h4>
+        <ul class="list-disc pl-6 space-y-1 text-sm">
+          <li>OZON Seller API: <code class="bg-white/10 px-1 rounded">/v3/supply-order/list</code> и <code class="bg-white/10 px-1 rounded">/v3/supply-order/get</code></li>
+          <li>OZON Seller API: <code class="bg-white/10 px-1 rounded">/v1/supply-order/bundle</code> для получения состава SKU</li>
+          <li>Все запросы выполняются для каждого активного аккаунта из таблицы <code class="bg-white/10 px-1 rounded">ozon_accounts</code></li>
+        </ul>
+
+        <h4 class="font-medium text-white mt-4">Показатели по заявке:</h4>
+        <ul class="list-disc pl-6 space-y-1 text-sm">
+          <li><strong class="text-white">Аккаунт</strong> — из поля <code class="bg-white/10 px-1 rounded">account_name</code></li>
+          <li><strong class="text-white">Номер заявки</strong> — <code class="bg-white/10 px-1 rounded">order_number</code></li>
+          <li><strong class="text-white">Дата создания</strong> — <code class="bg-white/10 px-1 rounded">created_date</code></li>
+          <li><strong class="text-white">Статус</strong> — <code class="bg-white/10 px-1 rounded">state</code> (DATA_FILLING, READY_TO_SUPPLY и др.)</li>
+          <li><strong class="text-white">Склад размещения</strong> — уникальные <code class="bg-white/10 px-1 rounded">storage_warehouse.name</code> из поставок</li>
+          <li><strong class="text-white">Точка отгрузки</strong> — <code class="bg-white/10 px-1 rounded">drop_off_warehouse.name</code></li>
+          <li><strong class="text-white">Таймслот</strong> — интервал из <code class="bg-white/10 px-1 rounded">timeslot.timeslot.from/to</code></li>
+          <li><strong class="text-white">SKU / Кол-во</strong> — вычисляется по составу поставок (уникальные SKU и суммарное количество)</li>
+          <li><strong class="text-white">Количество поставок</strong> — длина массива <code class="bg-white/10 px-1 rounded">supplies</code></li>
+        </ul>
+
+        <h4 class="font-medium text-white mt-4">Функциональность:</h4>
+        <ul class="list-disc pl-6 space-y-1 text-sm">
+          <li>Автоматическая загрузка заявок при открытии страницы</li>
+          <li>Ручное обновление кнопкой «Обновить»</li>
+          <li>Экспорт текущего списка заявок в Excel</li>
+          <li>Подсветка статусов и аккаунтов цветами для быстрого визуального анализа</li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- 9. Formulas -->
+    <div id="formulas" class="glass-card p-6">
+      <h3 class="text-lg font-semibold text-white mb-4">9. Формулы расчётов</h3>
+      <div class="space-y-6 text-white/85">
+
+        <div class="p-4 glass rounded-lg">
+          <h4 class="font-medium text-white mb-2">Средние дневные продажи</h4>
+          <code class="block bg-gray-900/80 text-green-400 p-3 rounded text-sm font-mono">
+            avgDailySales = totalQuantity / days
+          </code>
+          <p class="text-sm mt-2">Где <code class="bg-white/10 px-1 rounded">totalQuantity</code> — сумма проданных единиц за период, <code class="bg-white/10 px-1 rounded">days</code> — количество дней</p>
+        </div>
+
+        <div class="p-4 glass rounded-lg">
+          <h4 class="font-medium text-white mb-2">Оборачиваемость (дни)</h4>
+          <code class="block bg-gray-900/80 text-green-400 p-3 rounded text-sm font-mono">
+            turnover = availableStock / avgDailySales
+          </code>
+          <p class="text-sm mt-2">Показывает, на сколько дней хватит текущих остатков на OZON при текущей скорости продаж</p>
+        </div>
+
+        <div class="p-4 glass rounded-lg border border-orange-400/30">
+          <h4 class="font-medium text-white mb-2">Потребность на OZON (на 40 дней)</h4>
+          <code class="block bg-gray-900/80 text-orange-400 p-3 rounded text-sm font-mono">
+            forecastNeed = (40 * avgDailySales) - availableStock - transitStock
+          </code>
+          <p class="text-sm mt-2">
+            Если результат отрицательный, устанавливается 0.<br>
+            <strong class="text-white">40 дней</strong> — целевой запас на складах OZON.
+          </p>
+        </div>
+
+        <div class="p-4 glass rounded-lg border border-red-400/30">
+          <h4 class="font-medium text-white mb-2">Потребность к производству</h4>
+          <code class="block bg-gray-900/80 text-red-400 p-3 rounded text-sm font-mono">
+            productionNeed = forecastNeed - freeStock
+          </code>
+          <p class="text-sm mt-2">
+            Если результат отрицательный, устанавливается 0.<br>
+            <code class="bg-white/10 px-1 rounded">freeStock</code> — свободный остаток на складе производства.
+          </p>
+        </div>
+
+        <div class="p-4 glass rounded-lg border border-blue-400/30">
+          <h4 class="font-medium text-white mb-2">Соинвест (%)</h4>
+          <code class="block bg-gray-900/80 text-blue-400 p-3 rounded text-sm font-mono">
+            coinvestPercent = (coinvest / sales) * 100
+          </code>
+          <p class="text-sm mt-2">Процент соинвестирования от общих продаж</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- 10. API Endpoints -->
+    <div id="api-endpoints" class="glass-card p-6">
+      <h3 class="text-lg font-semibold text-white mb-4">10. API Endpoints приложения</h3>
+      <div class="space-y-4">
+
+        <h4 class="font-medium text-white">Авторизация</h4>
+        <div class="space-y-2 text-sm">
+          <div class="flex items-center gap-2 p-2 glass rounded">
+            <span class="px-2 py-0.5 text-xs font-medium bg-blue-500/30 text-blue-200 rounded border border-blue-400/30">GET</span>
+            <code class="text-purple-300">/auth/login</code>
+            <span class="text-white/60">— Форма входа</span>
+          </div>
+          <div class="flex items-center gap-2 p-2 glass rounded">
+            <span class="px-2 py-0.5 text-xs font-medium bg-green-500/30 text-green-200 rounded border border-green-400/30">POST</span>
+            <code class="text-purple-300">/auth/login</code>
+            <span class="text-white/60">— Обработка входа</span>
+          </div>
+          <div class="flex items-center gap-2 p-2 glass rounded">
+            <span class="px-2 py-0.5 text-xs font-medium bg-blue-500/30 text-blue-200 rounded border border-blue-400/30">GET</span>
+            <code class="text-purple-300">/auth/logout</code>
+            <span class="text-white/60">— Выход</span>
+          </div>
+        </div>
+
+        <h4 class="font-medium text-white mt-4">OZON</h4>
+        <div class="space-y-2 text-sm">
+          <div class="flex items-center gap-2 p-2 glass rounded">
+            <span class="px-2 py-0.5 text-xs font-medium bg-blue-500/30 text-blue-200 rounded border border-blue-400/30">GET</span>
+            <code class="text-purple-300">/ozon/coinvest</code>
+            <span class="text-white/60">— Страница соинвеста</span>
+          </div>
+          <div class="flex items-center gap-2 p-2 glass rounded">
+            <span class="px-2 py-0.5 text-xs font-medium bg-blue-500/30 text-blue-200 rounded border border-blue-400/30">GET</span>
+            <code class="text-purple-300">/ozon/forecast</code>
+            <span class="text-white/60">— Страница прогноза</span>
+          </div>
+          <div class="flex items-center gap-2 p-2 glass rounded">
+            <span class="px-2 py-0.5 text-xs font-medium bg-green-500/30 text-green-200 rounded border border-green-400/30">POST</span>
+            <code class="text-purple-300">/ozon/forecast/generate</code>
+            <span class="text-white/60">— API генерации отчёта (JSON)</span>
+          </div>
+          <div class="flex items-center gap-2 p-2 glass rounded">
+            <span class="px-2 py-0.5 text-xs font-medium bg-blue-500/30 text-blue-200 rounded border border-blue-400/30">GET</span>
+            <code class="text-purple-300">/ozon/postavki</code>
+            <span class="text-white/60">— Страница заявок на поставку</span>
+          </div>
+          <div class="flex items-center gap-2 p-2 glass rounded">
+            <span class="px-2 py-0.5 text-xs font-medium bg-green-500/30 text-green-200 rounded border border-green-400/30">GET</span>
+            <code class="text-purple-300">/ozon/postavki/api</code>
+            <span class="text-white/60">— API получения заявок на поставку (JSON)</span>
+          </div>
+        </div>
+
+        <h4 class="font-medium text-white mt-4">Администрирование (требуется is_admin)</h4>
+        <div class="space-y-2 text-sm">
+          <div class="flex items-center gap-2 p-2 glass rounded">
+            <span class="px-2 py-0.5 text-xs font-medium bg-blue-500/30 text-blue-200 rounded border border-blue-400/30">GET</span>
+            <code class="text-purple-300">/admin/users</code>
+            <span class="text-white/60">— Список пользователей</span>
+          </div>
+          <div class="flex items-center gap-2 p-2 glass rounded">
+            <span class="px-2 py-0.5 text-xs font-medium bg-blue-500/30 text-blue-200 rounded border border-blue-400/30">GET</span>
+            <code class="text-purple-300">/admin/settings/ozon</code>
+            <span class="text-white/60">— Настройки OZON аккаунтов</span>
+          </div>
+          <div class="flex items-center gap-2 p-2 glass rounded">
+            <span class="px-2 py-0.5 text-xs font-medium bg-blue-500/30 text-blue-200 rounded border border-blue-400/30">GET</span>
+            <code class="text-purple-300">/admin/docs</code>
+            <span class="text-white/60">— Документация (эта страница)</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 11. Setup -->
+    <div id="setup" class="glass-card p-6">
+      <h3 class="text-lg font-semibold text-white mb-4">11. Установка и настройка</h3>
+      <div class="space-y-6 text-white/85">
+
+        <div>
+          <h4 class="font-medium text-white mb-2">1. Установка зависимостей</h4>
+          <pre class="bg-gray-900/80 text-gray-100 p-3 rounded-lg text-sm"><code>npm install</code></pre>
+        </div>
+
+        <div>
+          <h4 class="font-medium text-white mb-2">2. Запуск приложения</h4>
+          <pre class="bg-gray-900/80 text-gray-100 p-3 rounded-lg text-sm"><code># Development
+npm run dev
+
+# Production
+npm start</code></pre>
+        </div>
+
+        <div>
+          <h4 class="font-medium text-white mb-2">3. Сборка стилей (Tailwind CSS)</h4>
+          <pre class="bg-gray-900/80 text-gray-100 p-3 rounded-lg text-sm"><code># Одноразовая сборка (production)
+npm run build:css
+
+# Вотчер в ходе разработки
+npm run watch:css</code></pre>
+        </div>
+
+        <div>
+          <h4 class="font-medium text-white mb-2">4. Первый вход</h4>
+          <ol class="list-decimal pl-6 space-y-2 text-sm">
+            <li>Откройте <code class="bg-white/10 px-1 rounded">http://localhost:3000</code></li>
+            <li>Войдите: <code class="bg-white/10 px-1 rounded">admin@example.com</code> / <code class="bg-white/10 px-1 rounded">admin123</code></li>
+            <li>Смените пароль в настройках профиля</li>
+          </ol>
+        </div>
+
+        <div>
+          <h4 class="font-medium text-white mb-2">5. Настройка OZON API</h4>
+          <ol class="list-decimal pl-6 space-y-2 text-sm">
+            <li>Перейдите в <a href="/admin/settings/ozon" class="text-blue-300 hover:text-blue-200 transition-colors">Интеграции → OZON</a></li>
+            <li>Добавьте аккаунт:
+              <ul class="list-disc pl-6 mt-1">
+                <li><strong class="text-white">Название</strong> — произвольное имя (ВМПАВТО, РМ и т.д.)</li>
+                <li><strong class="text-white">Client ID</strong> — из личного кабинета OZON Seller</li>
+                <li><strong class="text-white">API Key</strong> — сгенерируйте в личном кабинете OZON Seller</li>
+              </ul>
+            </li>
+            <li>Повторите для всех аккаунтов</li>
+          </ol>
+        </div>
+
+        <div>
+          <h4 class="font-medium text-white mb-2">6. Получение API ключей OZON</h4>
+          <ol class="list-decimal pl-6 space-y-2 text-sm">
+            <li>Войдите в <a href="https://seller.ozon.ru" target="_blank" class="text-blue-300 hover:text-blue-200 transition-colors">OZON Seller</a></li>
+            <li>Перейдите: Настройки → Seller API</li>
+            <li>Создайте ключ с правами:
+              <ul class="list-disc pl-6 mt-1">
+                <li>Аналитика</li>
+                <li>Финансы</li>
+                <li>FBO</li>
+              </ul>
+            </li>
+            <li>Скопируйте Client ID и API Key</li>
+          </ol>
+        </div>
+
+        <div>
+          <h4 class="font-medium text-white mb-2">7. Переменные окружения</h4>
+          <ul class="list-disc pl-6 space-y-2 text-sm">
+            <li><code class="bg-white/10 px-1 rounded">PORT</code> — порт HTTP-сервера (по умолчанию 3000)</li>
+            <li><code class="bg-white/10 px-1 rounded">SESSION_SECRET</code> — секрет для подписи сессий (обязательно поменять в production)</li>
+            <li><code class="bg-white/10 px-1 rounded">NODE_ENV</code> — <code>production</code> для включения secure-cookie и боевого режима</li>
+          </ul>
+        </div>
+
+        <div class="p-4 glass rounded-lg border border-yellow-400/30">
+          <h4 class="font-medium text-yellow-300 mb-2">Важно!</h4>
+          <ul class="list-disc pl-6 space-y-1 text-sm">
+            <li>API ключи OZON хранятся в локальной базе данных SQLite</li>
+            <li>База данных находится в <code class="bg-white/10 px-1 rounded">data/stat.db</code></li>
+            <li>Рекомендуется делать резервные копии базы данных</li>
+            <li>Не передавайте файл базы данных третьим лицам</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <!-- Footer -->
+    <div class="text-center text-sm text-white/50 py-4">
+      Документация актуальна на момент генерации. Версия 1.0.0
+    </div>
+  </div>
+` }) %>

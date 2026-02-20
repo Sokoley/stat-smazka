@@ -1,0 +1,130 @@
+<aside id="sidebar" class="fixed inset-y-0 left-0 z-50 w-64 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 transform -translate-x-full lg:translate-x-0 lg:static transition-transform duration-300 ease-in-out">
+  <div class="flex flex-col h-full">
+    <!-- Logo -->
+    <div class="flex items-center gap-3 px-6 py-5 border-b border-gray-200 dark:border-gray-700">
+      <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center">
+        <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
+        </svg>
+      </div>
+      <span class="text-lg font-bold text-gray-900 dark:text-white">STAT</span>
+    </div>
+
+    <!-- Navigation -->
+    <nav class="flex-1 px-4 py-6 space-y-1 overflow-y-auto">
+      <a href="/" class="sidebar-link active">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/>
+        </svg>
+        Дашборд
+      </a>
+
+      <!-- Promo Section -->
+      <div class="mt-6 pt-6 border-t border-gray-200 dark:border-gray-700">
+        <p class="px-4 text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Маркетинг</p>
+        <a href="/promo" class="sidebar-link">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 3.055A9.001 9.001 0 1020.945 13H11V3.055z"/>
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.488 9H15V3.512A9.025 9.025 0 0120.488 9z"/>
+          </svg>
+          Затраты на продвижение
+        </a>
+        <a href="/pos" class="sidebar-link">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4"/>
+          </svg>
+          Остатки промо материалов
+        </a>
+      </div>
+
+      <!-- Pricing Section -->
+      <div class="mt-6 pt-6 border-t border-gray-200 dark:border-gray-700">
+        <p class="px-4 text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Ценообразование</p>
+        <a href="/pricecheck" class="sidebar-link">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z"/>
+          </svg>
+          Регулирование цен
+        </a>
+      </div>
+
+      <!-- OZON Section -->
+      <div class="mt-6 pt-6 border-t border-gray-200 dark:border-gray-700">
+        <p class="px-4 text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">OZON</p>
+        <a href="/ozon/coinvest" class="sidebar-link">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+          </svg>
+          Соинвест
+        </a>
+        <a href="/ozon/forecast" class="sidebar-link">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+          </svg>
+          Прогнозная потребность
+        </a>
+        <a href="/ozon/postavki" class="sidebar-link">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/>
+          </svg>
+          Поставки
+        </a>
+        <a href="/ozon/reviews" class="sidebar-link">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 8h2a2 2 0 012 2v7a2 2 0 01-2 2H7l-4 4V10a2 2 0 012-2h2m4-6h4a2 2 0 012 2v4a2 2 0 01-2 2h-4l-4 4V6a2 2 0 012-2z"/>
+          </svg>
+          Отзывы
+        </a>
+      </div>
+
+      <% if (user && user.isAdmin) { %>
+        <!-- Integrations Section -->
+        <div class="mt-6 pt-6 border-t border-gray-200 dark:border-gray-700">
+          <p class="px-4 text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Интеграции</p>
+          <a href="/admin/settings/ozon" class="sidebar-link">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
+            </svg>
+            OZON
+          </a>
+        </div>
+
+        <!-- Admin Section -->
+        <div class="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
+          <p class="px-4 text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Администрирование</p>
+          <a href="/admin/users" class="sidebar-link">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"/>
+            </svg>
+            Пользователи
+          </a>
+          <a href="/admin/docs" class="sidebar-link">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/>
+            </svg>
+            Документация
+          </a>
+        </div>
+      <% } %>
+    </nav>
+
+    <!-- User Info -->
+    <div class="px-4 py-4 border-t border-gray-200 dark:border-gray-700">
+      <div class="flex items-center gap-3 px-4 py-3 rounded-xl bg-gray-50 dark:bg-gray-700/50">
+        <div class="w-8 h-8 rounded-full bg-gradient-to-br from-purple-400 to-pink-400 flex items-center justify-center text-white text-sm font-medium">
+          <% if (user) { %>
+            <%= user.name ? user.name.charAt(0).toUpperCase() : user.email.charAt(0).toUpperCase() %>
+          <% } else { %>
+            ?
+          <% } %>
+        </div>
+        <div class="flex-1 min-w-0">
+          <% if (user) { %>
+            <p class="text-sm font-medium text-gray-900 dark:text-white truncate"><%= user.name || 'Пользователь' %></p>
+            <p class="text-xs text-gray-500 dark:text-gray-400 truncate"><%= user.email %></p>
+          <% } %>
+        </div>
+      </div>
+    </div>
+  </div>
+</aside>

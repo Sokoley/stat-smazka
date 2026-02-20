@@ -1,0 +1,262 @@
+<%- include('../layouts/main', { title, body: `
+  <div class="space-y-6">
+    <div class="flex items-center justify-between flex-wrap gap-4">
+      <h2 class="text-2xl font-bold text-gray-900 dark:text-white">Заявки на поставку OZON</h2>
+    </div>
+
+    <div class="flex items-center gap-3 flex-wrap">
+      <button id="refreshBtn" onclick="loadOrders()" class="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+        </svg>
+        Обновить
+      </button>
+      <button id="exportBtn" onclick="exportToExcel()" disabled class="inline-flex items-center gap-2 px-4 py-2 bg-green-600 text-white text-sm font-medium rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+        </svg>
+        Скачать Excel
+      </button>
+      <span id="loading" class="text-sm text-gray-500 dark:text-gray-400 hidden">
+        <svg class="animate-spin inline w-4 h-4 mr-1" fill="none" viewBox="0 0 24 24">
+          <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+          <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+        </svg>
+        Загрузка...
+      </span>
+    </div>
+
+    <div id="error" class="hidden bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 rounded-lg p-4">
+      <p id="errorText" class="text-red-600 dark:text-red-400"></p>
+    </div>
+
+    <div class="card overflow-hidden">
+      <div class="overflow-x-auto">
+        <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+          <thead class="bg-gray-50 dark:bg-gray-800">
+            <tr>
+              <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Аккаунт</th>
+              <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Номер заявки</th>
+              <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Дата создания</th>
+              <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Статус</th>
+              <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Склад размещения</th>
+              <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Точка отгрузки</th>
+              <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Таймслот</th>
+              <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">SKU</th>
+              <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Поставки</th>
+            </tr>
+          </thead>
+          <tbody id="ordersBody" class="bg-white dark:bg-gray-900 divide-y divide-gray-200 dark:divide-gray-700">
+            <tr>
+              <td colspan="9" class="px-4 py-10 text-center text-gray-400 dark:text-gray-500">Нажмите «Обновить» для загрузки данных</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
+  <script>
+    let currentOrders = [];
+
+    function showError(message) {
+      const el = document.getElementById('error');
+      document.getElementById('errorText').textContent = message;
+      el.classList.remove('hidden');
+    }
+
+    function hideError() {
+      document.getElementById('error').classList.add('hidden');
+    }
+
+    function formatDate(dateString) {
+      if (!dateString) return '—';
+      const date = new Date(dateString);
+      return date.toLocaleString('ru-RU', {
+        year: 'numeric', month: '2-digit', day: '2-digit',
+        hour: '2-digit', minute: '2-digit'
+      });
+    }
+
+    function formatTimeslot(fromString, toString) {
+      if (!fromString || !toString) return '—';
+      const dateFrom = new Date(fromString);
+      const dateTo = new Date(toString);
+      const dateStr = dateFrom.toLocaleDateString('ru-RU', { year: 'numeric', month: '2-digit', day: '2-digit' });
+      const timeFrom = dateFrom.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
+      const timeTo = dateTo.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
+      return dateStr + ' ' + timeFrom + '–' + timeTo;
+    }
+
+    function formatStatus(status) {
+      const map = {
+        'DATA_FILLING': 'Заполнение данных',
+        'READY_TO_SUPPLY': 'Готова к отгрузке',
+        'COMPLETED': 'Завершена',
+        'UNSPECIFIED': 'Не указан'
+      };
+      return map[status] || status;
+    }
+
+    function getStatusClasses(status) {
+      const map = {
+        'DATA_FILLING': 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400',
+        'READY_TO_SUPPLY': 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400'
+      };
+      return map[status] || 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300';
+    }
+
+    function getAccountClasses(name) {
+      const n = name.toUpperCase();
+      if (n.includes('ВМПАВТО')) return 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400';
+      if (n.includes('РМ')) return 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400';
+      if (n.includes('СМАЗКА')) return 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400';
+      return 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300';
+    }
+
+    function getStorageWarehouses(supplies) {
+      if (!supplies || supplies.length === 0) return '—';
+      const warehouses = supplies.map(s => s.storage_warehouse?.name).filter(Boolean);
+      const unique = [...new Set(warehouses)];
+      return unique.join(', ') || '—';
+    }
+
+    function renderOrders(orders) {
+      const tbody = document.getElementById('ordersBody');
+
+      if (!orders || orders.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="9" class="px-4 py-10 text-center text-gray-400 dark:text-gray-500">Нет активных заявок</td></tr>';
+        return;
+      }
+
+      const sorted = [...orders].sort((a, b) => new Date(b.created_date) - new Date(a.created_date));
+
+      tbody.innerHTML = sorted.map(order => {
+        const accountName = order.account_name || '—';
+        const accountCls = getAccountClasses(accountName);
+        const orderNumber = order.order_number || '—';
+        const createdDate = formatDate(order.created_date);
+        const status = formatStatus(order.state);
+        const statusCls = getStatusClasses(order.state);
+        const storageWarehouses = getStorageWarehouses(order.supplies);
+        const dropoffWarehouse = order.drop_off_warehouse?.name || '—';
+        const timeslotFrom = order.timeslot?.timeslot?.from;
+        const timeslotTo = order.timeslot?.timeslot?.to;
+        const timeslot = formatTimeslot(timeslotFrom, timeslotTo);
+        const skuStats = order.sku_stats || { unique_sku: 0, total_quantity: 0 };
+        const skuInfo = (skuStats.unique_sku > 0 || skuStats.total_quantity > 0)
+          ? skuStats.unique_sku + ' / ' + skuStats.total_quantity
+          : '—';
+        const supplies = (order.supplies && order.supplies.length) || 0;
+
+        return '<tr class="hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors">' +
+          '<td class="px-4 py-3 whitespace-nowrap"><span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold ' + accountCls + '">' + accountName + '</span></td>' +
+          '<td class="px-4 py-3 whitespace-nowrap text-sm font-semibold text-gray-900 dark:text-white">' + orderNumber + '</td>' +
+          '<td class="px-4 py-3 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">' + createdDate + '</td>' +
+          '<td class="px-4 py-3 whitespace-nowrap"><span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ' + statusCls + '">' + status + '</span></td>' +
+          '<td class="px-4 py-3 text-sm text-gray-700 dark:text-gray-300">' + storageWarehouses + '</td>' +
+          '<td class="px-4 py-3 text-sm text-gray-700 dark:text-gray-300">' + dropoffWarehouse + '</td>' +
+          '<td class="px-4 py-3 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">' + timeslot + '</td>' +
+          '<td class="px-4 py-3 whitespace-nowrap text-sm text-gray-700 dark:text-gray-300">' + skuInfo + '</td>' +
+          '<td class="px-4 py-3 whitespace-nowrap text-sm text-gray-700 dark:text-gray-300">' + supplies + '</td>' +
+        '</tr>';
+      }).join('');
+    }
+
+    function exportToExcel() {
+      if (!currentOrders || currentOrders.length === 0) {
+        alert('Нет данных для экспорта.');
+        return;
+      }
+
+      const sorted = [...currentOrders].sort((a, b) => new Date(b.created_date) - new Date(a.created_date));
+
+      const excelData = sorted.map(order => ({
+        'Аккаунт': order.account_name || '—',
+        'Номер заявки': order.order_number || '—',
+        'Дата создания': formatDate(order.created_date),
+        'Статус': formatStatus(order.state),
+        'Склад размещения': getStorageWarehouses(order.supplies),
+        'Точка отгрузки': order.drop_off_warehouse?.name || '—',
+        'Таймслот': formatTimeslot(order.timeslot?.timeslot?.from, order.timeslot?.timeslot?.to),
+        'Уникальных SKU': (order.sku_stats || {}).unique_sku || 0,
+        'Всего товаров': (order.sku_stats || {}).total_quantity || 0,
+        'Поставки': (order.supplies && order.supplies.length) || 0
+      }));
+
+      const wb = XLSX.utils.book_new();
+      const ws = XLSX.utils.json_to_sheet(excelData);
+      ws['!cols'] = [
+        { wch: 15 }, { wch: 15 }, { wch: 18 }, { wch: 18 },
+        { wch: 30 }, { wch: 30 }, { wch: 25 }, { wch: 15 },
+        { wch: 15 }, { wch: 10 }
+      ];
+      XLSX.utils.book_append_sheet(wb, ws, 'Заявки на поставку');
+
+      const now = new Date();
+      const fileName = 'Заявки_OZON_' + now.getFullYear() + '-' +
+        String(now.getMonth() + 1).padStart(2, '0') + '-' +
+        String(now.getDate()).padStart(2, '0') + '.xlsx';
+      XLSX.writeFile(wb, fileName);
+    }
+
+    async function loadOrders() {
+      const loadingEl = document.getElementById('loading');
+      const refreshBtn = document.getElementById('refreshBtn');
+      const exportBtn = document.getElementById('exportBtn');
+
+      hideError();
+      loadingEl.classList.remove('hidden');
+      refreshBtn.disabled = true;
+      exportBtn.disabled = true;
+
+      try {
+        const response = await fetch('/ozon/postavki/api');
+        const data = await response.json();
+
+        console.log('Полные данные:', data);
+
+        if (data.error) {
+          showError('Ошибка: ' + (data.error.message || data.error));
+          return;
+        }
+
+        if (data._debug_errors && data._debug_errors.length > 0) {
+          console.warn('Ошибки при загрузке из аккаунтов:', data._debug_errors);
+        }
+
+        currentOrders = data.orders || [];
+
+        // Показываем заявки с нулевыми SKU для отладки
+        const ordersWithZeroSku = currentOrders.filter(o => o.sku_stats?.unique_sku === 0 && !o._debug_no_bundle);
+        if (ordersWithZeroSku.length > 0) {
+          console.warn('Заявки с bundle_id, но нулевыми SKU:', ordersWithZeroSku.map(o => ({
+            order: o.order_number,
+            account: o.account_name,
+            bundle_ids: o._debug_bundle_ids,
+            items_count: o._debug_items_count,
+            debug: o._debug_bundle_result,
+            error: o._debug_error
+          })));
+        }
+
+        renderOrders(currentOrders);
+
+        if (currentOrders.length > 0) {
+          exportBtn.disabled = false;
+        }
+      } catch (error) {
+        showError('Ошибка загрузки данных: ' + error.message);
+        currentOrders = [];
+      } finally {
+        loadingEl.classList.add('hidden');
+        refreshBtn.disabled = false;
+      }
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+      loadOrders();
+    });
+  </script>
+` }) %>

@@ -1,0 +1,1569 @@
+<%- include('../layouts/main', { title, body: `
+  <style>
+    /* Вставлены стили из оригинальной PHP-страницы */
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    }
+    
+    body {
+      background-color: #f5f7fa;
+      color: #333;
+      line-height: 1.6;
+    }
+    
+    .ozon-reviews-container {
+      max-width: 1200px;
+      margin: 0 auto;
+      background-color: white;
+      border-radius: 10px;
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+      padding: 20px;
+    }
+    
+    .ozon-reviews-container header {
+      text-align: center;
+      margin-bottom: 30px;
+      padding-bottom: 20px;
+      border-bottom: 1px solid #eee;
+    }
+    
+    .ozon-reviews-container h1 {
+      color: #000000ff;
+      margin-bottom: 10px;
+    }
+    
+    .ozon-reviews-container h2 {
+      color: #333;
+      margin: 25px 0 15px 0;
+      padding-bottom: 10px;
+      border-bottom: 2px solid #f0f0f0;
+    }
+    
+    .ozon-reviews-container h3 {
+      color: #005bff;
+      margin: 20px 0 10px 0;
+    }
+    
+    .description {
+      color: #666;
+      margin-bottom: 20px;
+    }
+    
+    .search-section {
+      margin-bottom: 20px;
+    }
+    
+    .search-container {
+      position: relative;
+      max-width: 500px;
+      margin: 0 auto;
+    }
+    
+    .search-input {
+      width: 100%;
+      padding: 12px 45px 12px 15px;
+      border: 2px solid #e0e0e0;
+      border-radius: 25px;
+      font-size: 16px;
+      transition: all 0.3s;
+    }
+    
+    .search-input:focus {
+      outline: none;
+      border-color: #005bff;
+      box-shadow: 0 0 0 3px rgba(0, 91, 255, 0.1);
+    }
+    
+    .search-icon {
+      position: absolute;
+      right: 15px;
+      top: 50%;
+      transform: translateY(-50%);
+      color: #666;
+      font-size: 18px;
+    }
+    
+    .search-results {
+      position: absolute;
+      top: 100%;
+      left: 0;
+      right: 0;
+      background: white;
+      border: 1px solid #e0e0e0;
+      border-radius: 8px;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+      max-height: 300px;
+      overflow-y: auto;
+      z-index: 1000;
+      display: none;
+    }
+    
+    .search-result-item {
+      padding: 12px 15px;
+      cursor: pointer;
+      border-bottom: 1px solid #f0f0f0;
+      transition: background-color 0.2s;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    
+    .search-result-item:hover {
+      background-color: #f8f9fa;
+    }
+    
+    .search-result-item:last-child {
+      border-bottom: none;
+    }
+    
+    .search-product-image {
+      width: 40px;
+      height: 40px;
+      object-fit: cover;
+      border-radius: 4px;
+      background-color: #f0f0f0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #999;
+      font-size: 10px;
+      text-align: center;
+    }
+    
+    .search-product-info {
+      flex: 1;
+    }
+    
+    .product-name-search {
+      font-weight: 600;
+      margin-bottom: 4px;
+    }
+    
+    .product-sku {
+      font-size: 12px;
+      color: #666;
+    }
+    
+    .selected-product {
+      display: none;
+      align-items: center;
+      gap: 15px;
+      margin-bottom: 20px;
+      padding: 15px;
+      background: #f0f7ff;
+      border-radius: 10px;
+      border: 2px solid #005bff;
+    }
+    
+    .selected-product-image {
+      width: 150px;
+      height: 150px;
+      object-fit: cover;
+      border-radius: 8px;
+      background-color: #f0f0f0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #999;
+      font-size: 14px;
+      text-align: center;
+    }
+    
+    .selected-product-info {
+      flex: 1;
+    }
+    
+    .selected-product-name {
+      font-size: 24px;
+      font-weight: bold;
+      color: #005bff;
+      margin-bottom: 5px;
+    }
+    
+    .selected-product-sku {
+      color: #666;
+      font-size: 14px;
+    }
+    
+    .selected-product-reviews {
+      color: #666;
+      font-size: 16px;
+      margin-top: 5px;
+    }
+    
+    .product-selection {
+      display: flex;
+      gap: 15px;
+      margin-bottom: 20px;
+      align-items: flex-end;
+    }
+    
+    .product-select-group {
+      flex: 1;
+      display: none;
+    }
+    
+    .action-buttons {
+      display: flex;
+      gap: 10px;
+      margin-left: auto;
+    }
+    
+    label {
+      display: block;
+      margin-bottom: 5px;
+      font-weight: 600;
+      color: #555;
+    }
+    
+    select, button {
+      padding: 10px;
+      border: 1px solid #ddd;
+      border-radius: 5px;
+      font-size: 16px;
+    }
+    
+    select {
+      width: 100%;
+    }
+    
+    button {
+      background-color: #005bff;
+      color: white;
+      border: none;
+      cursor: pointer;
+      transition: background-color 0.3s;
+      white-space: nowrap;
+    }
+    
+    button:hover {
+      background-color: #0048d9;
+    }
+    
+    button:disabled {
+      background-color: #ccc;
+      cursor: not-allowed;
+    }
+    
+    .download-btn {
+      background-color: #28a745;
+    }
+    
+    .download-btn:hover {
+      background-color: #218838;
+    }
+    
+    .analyze-btn {
+      background-color: #ff6b00;
+    }
+    
+    .analyze-btn:hover {
+      background-color: #e55a00;
+    }
+    
+    .update-btn {
+      background-color: #6f42c1;
+    }
+    
+    .update-btn:hover {
+      background-color: #5e34b1;
+    }
+    
+    .analytics-section {
+      display: none;
+      margin: 30px 0;
+    }
+    
+    .analytics-header {
+      text-align: center;
+      margin-bottom: 30px;
+    }
+    
+    .analytics-title {
+      font-size: 28px;
+      font-weight: bold;
+      color: #005bff;
+      margin: 0;
+    }
+    
+    .analytics-loading {
+      text-align: center;
+      padding: 40px;
+      color: #666;
+    }
+    
+    .spinner {
+      border: 4px solid #f3f3f3;
+      border-top: 4px solid #005bff;
+      border-radius: 50%;
+      width: 40px;
+      height: 40px;
+      animation: spin 2s linear infinite;
+      margin: 0 auto 20px;
+    }
+    
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+    
+    .analytics-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+      gap: 20px;
+      margin-bottom: 30px;
+    }
+    
+    .analytics-card {
+      background: white;
+      padding: 20px;
+      border-radius: 10px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+      border-left: 4px solid #005bff;
+    }
+    
+    .card-title {
+      font-size: 18px;
+      font-weight: bold;
+      color: #333;
+      margin-bottom: 15px;
+      padding-bottom: 10px;
+      border-bottom: 2px solid #f0f0f0;
+    }
+    
+    .category-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 10px;
+      margin-bottom: 8px;
+      background: #f8f9fa;
+      border-radius: 5px;
+      cursor: pointer;
+      transition: all 0.3s;
+    }
+    
+    .category-item:hover {
+      background: #e9ecef;
+      transform: translateX(5px);
+    }
+    
+    .category-name {
+      font-weight: 500;
+    }
+    
+    .category-percentage {
+      font-weight: bold;
+      color: #28a745;
+      background: #e8f5e8;
+      padding: 3px 10px;
+      border-radius: 15px;
+    }
+    
+    .comparison-better {
+      color: #28a745;
+      background: #e8f5e8;
+    }
+    
+    .comparison-worse {
+      color: #dc3545;
+      background: #f8e8e8;
+    }
+    
+    .gender-stats {
+      display: flex;
+      justify-content: space-around;
+      margin-top: 15px;
+    }
+    
+    .gender-item {
+      text-align: center;
+      padding: 10px;
+    }
+    
+    .gender-icon {
+      font-size: 24px;
+      margin-bottom: 5px;
+    }
+    
+    .gender-male {
+      color: #007bff;
+    }
+    
+    .gender-female {
+      color: #e83e8c;
+    }
+    
+    .gender-percentage {
+      font-size: 18px;
+      font-weight: bold;
+    }
+    
+    .gender-label {
+      font-size: 12px;
+      color: #666;
+    }
+    
+    .rating-stats {
+      margin-top: 15px;
+      padding-top: 15px;
+      border-top: 1px solid #f0f0f0;
+    }
+    
+    .rating-stat-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 8px;
+      padding: 5px 0;
+    }
+    
+    .rating-stars {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+    
+    .rating-count {
+      font-weight: bold;
+      color: #005bff;
+    }
+    
+    .loading-progress {
+      background: #f0f7ff;
+      padding: 20px;
+      border-radius: 8px;
+      margin-bottom: 20px;
+      display: none;
+      text-align: center;
+    }
+    
+    .progress-text {
+      text-align: center;
+      font-size: 16px;
+      color: #666;
+      margin-bottom: 15px;
+    }
+    
+    .progress-spinner {
+      border: 4px solid #f3f3f3;
+      border-top: 4px solid #005bff;
+      border-radius: 50%;
+      width: 50px;
+      height: 50px;
+      animation: spin 1s linear infinite;
+      margin: 0 auto;
+    }
+    
+    .reviews-modal {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0,0,0,0.5);
+      z-index: 2000;
+      overflow-y: auto;
+    }
+    
+    .modal-content {
+      background: white;
+      margin: 50px auto;
+      padding: 20px;
+      border-radius: 10px;
+      max-width: 800px;
+      max-height: 80vh;
+      overflow-y: auto;
+      position: relative;
+    }
+    
+    .modal-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+      padding-bottom: 10px;
+      border-bottom: 2px solid #f0f0f0;
+    }
+    
+    .modal-title {
+      font-size: 20px;
+      font-weight: bold;
+      color: #005bff;
+    }
+    
+    .close-modal {
+      background: none;
+      border: none;
+      font-size: 24px;
+      cursor: pointer;
+      color: #666;
+    }
+    
+    .modal-reviews {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 15px;
+    }
+    
+    .reviews-container {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+      gap: 20px;
+    }
+    
+    .review-card {
+      background-color: white;
+      border-radius: 8px;
+      box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+      padding: 15px;
+      transition: transform 0.3s;
+      border-left: 4px solid #005bff;
+    }
+    
+    .review-card:hover {
+      transform: translateY(-5px);
+      box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+    }
+    
+    .product-info {
+      display: flex;
+      align-items: center;
+      margin-bottom: 10px;
+      padding-bottom: 10px;
+      border-bottom: 1px solid #eee;
+    }
+    
+    .product-image {
+      width: 60px;
+      height: 60px;
+      object-fit: cover;
+      border-radius: 5px;
+      margin-right: 10px;
+      background-color: #f0f0f0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #999;
+      font-size: 12px;
+      text-align: center;
+    }
+    
+    .product-name {
+      font-weight: 600;
+      flex: 1;
+    }
+    
+    .rating {
+      display: flex;
+      margin-bottom: 10px;
+    }
+    
+    .star {
+      color: #ffc107;
+      margin-right: 2px;
+      font-size: 18px;
+    }
+    
+    .review-text {
+      margin-bottom: 10px;
+      line-height: 1.5;
+      background-color: #f9f9f9;
+      padding: 10px;
+      border-radius: 5px;
+      border-left: 3px solid #e0e0e0;
+    }
+    
+    .review-meta {
+      display: flex;
+      justify-content: space-between;
+      font-size: 14px;
+      color: #777;
+    }
+    
+    .status {
+      padding: 3px 8px;
+      border-radius: 4px;
+      font-size: 12px;
+      font-weight: 600;
+    }
+    
+    .status-published {
+      background-color: #e7f7ef;
+      color: #0a8754;
+    }
+    
+    .status-unpublished {
+      background-color: #fef3e2;
+      color: #b54708;
+    }
+    
+    .no-reviews {
+      text-align: center;
+      padding: 40px;
+      color: #777;
+      grid-column: 1 / -1;
+    }
+    
+    .loading {
+      text-align: center;
+      padding: 20px;
+      grid-column: 1 / -1;
+    }
+    
+    .error {
+      background-color: #fee;
+      color: #c33;
+      padding: 10px;
+      border-radius: 5px;
+      margin-bottom: 20px;
+      text-align: center;
+    }
+    
+    .success {
+      background-color: #efe;
+      color: #3c3;
+      padding: 10px;
+      border-radius: 5px;
+      margin-bottom: 20px;
+      text-align: center;
+    }
+    
+    .media-count {
+      display: flex;
+      gap: 10px;
+      margin-top: 10px;
+      font-size: 14px;
+      color: #666;
+    }
+    
+    .media-item {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+    
+    @media (max-width: 768px) {
+      .product-selection {
+        flex-direction: column;
+        align-items: stretch;
+      }
+      
+      .action-buttons {
+        flex-direction: column;
+        margin-left: 0;
+      }
+      
+      .reviews-container {
+        grid-template-columns: 1fr;
+      }
+      
+      .analytics-grid {
+        grid-template-columns: 1fr;
+      }
+      
+      .gender-stats {
+        flex-direction: column;
+      }
+      
+      .selected-product {
+        flex-direction: column;
+        text-align: center;
+      }
+    }
+  </style>
+
+  <div class="ozon-reviews-container">
+    <header>
+      <h1>Отзывы покупателей OZON</h1>
+      <p class="description">Просмотр отзывов на товары за последние 30 дней. Показываются только отзывы с текстом.</p>
+    </header>
+    
+    <div class="search-section">
+      <div class="search-container">
+        <input type="text" id="product-search" class="search-input" placeholder="Поиск товара по названию...">
+        <div class="search-icon">🔍</div>
+        <div class="search-results" id="search-results"></div>
+      </div>
+    </div>
+    
+    <div class="selected-product" id="selected-product">
+      <div class="selected-product-image" id="selected-product-image">Нет фото</div>
+      <div class="selected-product-info">
+        <div class="selected-product-name" id="selected-product-name">Название товара</div>
+        <div class="selected-product-sku" id="selected-product-sku">SKU: </div>
+        <div class="selected-product-reviews" id="selected-product-reviews"></div>
+      </div>
+    </div>
+    
+    <div class="loading-progress" id="loading-progress">
+      <div class="progress-text" id="progress-text">Загрузка отзывов...</div>
+      <div class="progress-spinner"></div>
+    </div>
+    
+    <div class="product-selection">
+      <div class="product-select-group">
+        <label for="product-select">Выберите товар:</label>
+        <select id="product-select">
+          <option value="">Все товары</option>
+        </select>
+      </div>
+      <div class="action-buttons">
+        <button id="update-btn" class="update-btn" style="display: none !important;">Обновить отзывы из OZON</button>
+        <button id="download-btn" class="download-btn" style="display: none !important;">Скачать отзывы</button>
+        <button id="analyze-btn" class="analyze-btn">Анализ отзывов</button>
+      </div>
+    </div>
+    
+    <div id="error-message" class="error" style="display: none;"></div>
+    <div id="success-message" class="success" style="display: none;"></div>
+    
+    <div class="analytics-section" id="analytics-section">
+      <div class="analytics-header">
+        <h2 class="analytics-title">Аналитика отзывов</h2>
+      </div>
+      <div id="analytics-content"></div>
+    </div>
+    
+    <div class="reviews-container" id="reviews-container">
+      <div class="loading">Загрузка отзывов...</div>
+    </div>
+  </div>
+
+  <!-- Модальное окно для отзывов -->
+  <div class="reviews-modal" id="reviews-modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3 class="modal-title" id="modal-title">Отзывы по категории</h3>
+        <button class="close-modal" id="close-modal">&times;</button>
+      </div>
+      <div class="modal-reviews" id="modal-reviews"></div>
+    </div>
+  </div>
+
+  <script>
+    // Конфигурация API
+    const API_CONFIG = {
+      apiKey: '5cf6e47b-0f73-4b23-b8cd-6a097e7cd60d',
+      clientId: '106736',
+      baseUrl: 'https://api-seller.ozon.ru',
+      deepSeekProxyUrl: '/ozon/reviews/api-proxy.php',
+      serverUrl: '/ozon/reviews/update_reviews.php'
+    };
+
+    let allReviews = [];
+    let productsMap = new Map();
+    let filteredReviews = [];
+    let currentAnalysis = null;
+    let currentSelectedProduct = null;
+    let reviewCategories = new Map();
+
+    const productSelect = document.getElementById('product-select');
+    const downloadBtn = document.getElementById('download-btn');
+    const analyzeBtn = document.getElementById('analyze-btn');
+    const updateBtn = document.getElementById('update-btn');
+    const reviewsContainer = document.getElementById('reviews-container');
+    const errorMessage = document.getElementById('error-message');
+    const successMessage = document.getElementById('success-message');
+    const analyticsSection = document.getElementById('analytics-section');
+    const analyticsContent = document.getElementById('analytics-content');
+    const productSearch = document.getElementById('product-search');
+    const searchResults = document.getElementById('search-results');
+    const reviewsModal = document.getElementById('reviews-modal');
+    const modalTitle = document.getElementById('modal-title');
+    const modalReviews = document.getElementById('modal-reviews');
+    const closeModal = document.getElementById('close-modal');
+    const selectedProductElement = document.getElementById('selected-product');
+    const selectedProductImage = document.getElementById('selected-product-image');
+    const selectedProductName = document.getElementById('selected-product-name');
+    const selectedProductSku = document.getElementById('selected-product-sku');
+    const selectedProductReviews = document.getElementById('selected-product-reviews');
+    const loadingProgress = document.getElementById('loading-progress');
+    const progressText = document.getElementById('progress-text');
+
+    document.addEventListener('DOMContentLoaded', async () => {
+      try {
+        const loadedFromServer = await loadReviewsFromServer();
+        
+        if (!loadedFromServer || allReviews.length === 0) {
+          showInfo('На сервере нет отзывов. Загружаем из OZON API...');
+          await updateReviewsOnServer();
+        } else {
+          showSuccess('Загружено ' + allReviews.length + ' отзывов с сервера');
+        }
+        
+        await fetchProductsInfo();
+        populateProductSelect();
+        displayReviews(allReviews);
+        
+        downloadBtn.addEventListener('click', downloadReviews);
+        analyzeBtn.addEventListener('click', analyzeProductUsage);
+        updateBtn.addEventListener('click', updateReviewsOnServer);
+        productSelect.addEventListener('change', handleProductChange);
+        productSearch.addEventListener('input', handleSearch);
+        
+        closeModal.addEventListener('click', closeReviewsModal);
+        reviewsModal.addEventListener('click', (e) => {
+          if (e.target === reviewsModal) {
+            closeReviewsModal();
+          }
+        });
+        
+        document.addEventListener('click', (e) => {
+          if (!e.target.closest('.search-container')) {
+            searchResults.style.display = 'none';
+          }
+        });
+      } catch (error) {
+        showError('Ошибка при загрузке данных: ' + error.message);
+      }
+    });
+
+    async function loadReviewsFromServer() {
+      try {
+        const response = await fetch(API_CONFIG.serverUrl);
+        const result = await response.json();
+        
+        if (result.success && result.data) {
+          allReviews = result.data.reviews || [];
+          console.log('Загружено ' + allReviews.length + ' отзывов с сервера');
+          return true;
+        } else {
+          throw new Error(result.message || 'Не удалось загрузить отзывы с сервера');
+        }
+      } catch (error) {
+        console.warn('Ошибка загрузки с сервера:', error.message);
+        return false;
+      }
+    }
+
+    async function updateReviewsOnServer() {
+      try {
+        showInfo('Загрузка отзывов из OZON API и сохранение на сервере...');
+        
+        const response = await fetch(API_CONFIG.serverUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          }
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+          await loadReviewsFromServer();
+          await fetchProductsInfo();
+          populateProductSelect();
+          displayReviews(allReviews);
+          
+          showSuccess('Отзывы обновлены! ' + result.data.totalCount + ' отзывов сохранено на сервере');
+          return true;
+        } else {
+          throw new Error(result.message);
+        }
+      } catch (error) {
+        showError('Ошибка при обновлении отзывов: ' + error.message);
+        return false;
+      }
+    }
+
+    function closeReviewsModal() {
+      reviewsModal.style.display = 'none';
+    }
+
+    function handleSearch(e) {
+      const searchTerm = e.target.value.trim().toLowerCase();
+      
+      if (searchTerm.length < 2) {
+        searchResults.style.display = 'none';
+        return;
+      }
+      
+      const filteredProducts = Array.from(productsMap.entries())
+        .filter(([sku, product]) => 
+          product.name.toLowerCase().includes(searchTerm)
+        )
+        .slice(0, 10);
+      
+      displaySearchResults(filteredProducts);
+    }
+
+    function displaySearchResults(products) {
+      if (products.length === 0) {
+        searchResults.innerHTML = '<div class="search-result-item">Товары не найдены</div>';
+        searchResults.style.display = 'block';
+        return;
+      }
+      
+      searchResults.innerHTML = products.map(([sku, product]) =>
+        '<div class="search-result-item" data-sku="' + sku + '">' +
+          '<div class="search-product-image">' +
+            (product.image ? '<img src="' + product.image + '" alt="' + product.name + '" style="width:100%;height:100%;object-fit:cover;">' : 'Нет фото') +
+          '</div>' +
+          '<div class="search-product-info">' +
+            '<div class="product-name-search">' + highlightSearchTerm(product.name, productSearch.value) + '</div>' +
+            '<div class="product-sku">SKU: ' + sku + '</div>' +
+          '</div>' +
+        '</div>'
+      ).join('');
+      
+      searchResults.style.display = 'block';
+      
+      searchResults.querySelectorAll('.search-result-item').forEach(item => {
+        item.addEventListener('click', () => {
+          const sku = item.getAttribute('data-sku');
+          selectProductFromSearch(sku);
+        });
+      });
+    }
+
+    function highlightSearchTerm(text, searchTerm) {
+      if (!searchTerm) return text;
+      const regex = new RegExp('(' + searchTerm + ')', 'gi');
+      return text.replace(regex, '<mark>$1</mark>');
+    }
+
+    function selectProductFromSearch(sku) {
+      currentSelectedProduct = sku;
+      const product = productsMap.get(sku);
+      
+      const productReviewsCount = allReviews.filter(review => 
+        review.sku.toString() === sku
+      ).length;
+      
+      selectedProductName.textContent = product.name;
+      selectedProductSku.textContent = 'SKU: ' + sku;
+      selectedProductReviews.textContent = productReviewsCount + ' отзывов';
+      
+      if (product.image) {
+        selectedProductImage.innerHTML = '<img src="' + product.image + '" alt="' + product.name + '" style="width:100%;height:100%;object-fit:cover;">';
+      } else {
+        selectedProductImage.textContent = 'Нет фото';
+      }
+      
+      selectedProductElement.style.display = 'flex';
+      productSearch.value = product.name;
+      searchResults.style.display = 'none';
+      
+      downloadBtn.style.display = 'block';
+      analyzeBtn.style.display = 'block';
+      analyticsSection.style.display = 'none';
+      
+      filteredReviews = allReviews.filter(review => 
+        review.sku.toString() === sku
+      );
+      displayReviews(filteredReviews);
+    }
+
+    function handleProductChange() {
+      const selectedProduct = productSelect.value;
+      
+      if (selectedProduct) {
+        downloadBtn.style.display = 'block';
+        analyzeBtn.style.display = 'block';
+        analyticsSection.style.display = 'none';
+        
+        filteredReviews = allReviews.filter(review => 
+          review.sku.toString() === selectedProduct
+        );
+        displayReviews(filteredReviews);
+      } else {
+        downloadBtn.style.display = 'none';
+        analyzeBtn.style.display = 'none';
+        analyticsSection.style.display = 'none';
+        selectedProductElement.style.display = 'none';
+        displayReviews(allReviews);
+      }
+    }
+
+    async function analyzeProductUsage() {
+      if (!currentSelectedProduct) {
+        showError('Пожалуйста, выберите товар для анализа');
+        return;
+      }
+      
+      const productReviews = allReviews.filter(review => 
+        review.sku.toString() === currentSelectedProduct
+      );
+      
+      if (productReviews.length === 0) {
+        showError('Нет отзывов для анализа выбранного товара');
+        return;
+      }
+      
+      analyticsSection.style.display = 'block';
+      analyticsContent.innerHTML =
+        '<div class="analytics-loading">' +
+          '<div class="spinner"></div>' +
+          '<p>Анализируем ' + productReviews.length + ' отзывов с помощью DeepSeek AI...</p>' +
+          '<p>Это может занять несколько секунд</p>' +
+        '</div>';
+      
+      analyzeBtn.disabled = true;
+      analyzeBtn.textContent = 'Анализ выполняется...';
+      
+      try {
+        const analysis = await getDeepSeekAnalysis(productReviews);
+        currentAnalysis = analysis;
+        displayUsageAnalysis(analysis, productReviews);
+      } catch (error) {
+        showError('Ошибка при анализе отзывов: ' + error.message);
+        analyticsContent.innerHTML = '';
+      } finally {
+        analyzeBtn.disabled = false;
+        analyzeBtn.textContent = 'Анализ отзывов';
+      }
+    }
+
+    async function getDeepSeekAnalysis(reviews) {
+      console.log('Начинаем анализ для', reviews.length, 'отзывов');
+      
+      reviewCategories.clear();
+
+      const reviewsText = reviews.map(function(review, index) {
+        return (index + 1) + '. Рейтинг ' + review.rating + '/5: ' + review.text;
+      }).join('\\n\\n');
+
+      const prompt = 'Ты профессиональный аналитик отзывов. Проанализируй эти отзывы и верни ТОЛЬКО JSON объект без каких-либо других текстов, комментариев или форматирования.\\n\\n' +
+        'ОТЗЫВЫ (' + reviews.length + ' шт.):\\n' +
+        reviewsText + '\\n\\n' +
+        'АНАЛИТИКА В ФОРМАТЕ JSON:\\n' +
+        '1. Применение товара (категории использования с процентами, сумма 100%)\\n' +
+        '2. Достоинства товара (положительные стороны с процентами, сумма 100%)\\n' +
+        '3. Недостатки товара (проблемы с процентами, сумма 100%)\\n' +
+        '4. Распределение покупателей по полу (мужчины/женщины в процентах)\\n' +
+        '5. Источники информации (откуда узнали о товаре, сумма 100%)\\n' +
+        '6. Сравнение с конкурентами (упоминания других брендов)\\n' +
+        '7. Распределение оценок (сколько отзывов с каждой оценкой)\\n\\n' +
+        'ВЕРНИ ТОЛЬКО JSON:\\n' +
+        '{\\n' +
+        '  "usage": [\\n    {"name": "Название применения", "percentage": число, "review_ids": [номера]}\\n  ],\\n' +
+        '  "advantages": [\\n    {"name": "Название достоинства", "percentage": число, "review_ids": [номера]}\\n  ],\\n' +
+        '  "disadvantages": [\\n    {"name": "Название недостатка", "percentage": число, "review_ids": [номера]}\\n  ],\\n' +
+        '  "gender_distribution": {\\n    "male": число,\\n    "female": число\\n  },\\n' +
+        '  "discovery_sources": [\\n    {"name": "Источник", "percentage": число, "review_ids": [номера]}\\n  ],\\n' +
+        '  "competitor_comparison": [\\n    {"name": "Бренд - лучше", "percentage": число, "review_ids": [номера]},\\n    {"name": "Бренд - хуже", "percentage": число, "review_ids": [номера]}\\n  ],\\n' +
+        '  "rating_distribution": {\\n    "1": число,\\n    "2": число,\\n    "3": число,\\n    "4": число,\\n    "5": число\\n  }\\n' +
+        '}';
+
+      try {
+        const payload = {
+          model: 'deepseek-chat',
+          messages: [
+            { 
+              role: 'system', 
+              content: 'Ты возвращаешь ТОЛЬКО валидный JSON. Никаких других текстов, пояснений или форматирования.' 
+            },
+            { 
+              role: 'user', 
+              content: prompt 
+            }
+          ],
+          max_tokens: 4000,
+          temperature: 0.1,
+          response_format: { type: "json_object" }
+        };
+
+        console.log('Отправляем запрос к DeepSeek...');
+        
+        const response = await fetch(API_CONFIG.deepSeekProxyUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(payload)
+        });
+
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.error('Ошибка ответа:', errorText);
+          throw new Error('Ошибка API: ' + response.status);
+        }
+
+        const data = await response.json();
+        console.log('Получен ответ от DeepSeek:', data);
+        
+        if (!data || !data.choices || !data.choices[0] || !data.choices[0].message) {
+          console.error('Неверная структура ответа:', data);
+          throw new Error('Неверная структура ответа от DeepSeek');
+        }
+        
+        const responseContent = data.choices[0].message.content;
+        console.log('Содержимое ответа:', responseContent);
+        
+        let parsedAnalysis;
+        try {
+          parsedAnalysis = JSON.parse(responseContent);
+        } catch (parseError) {
+          console.warn('Первая попытка парсинга не удалась, пытаемся извлечь JSON...');
+          
+          const jsonMatch = responseContent.match(/\{[\s\S]*\}/);
+          if (jsonMatch) {
+            try {
+              parsedAnalysis = JSON.parse(jsonMatch[0]);
+            } catch (secondError) {
+              console.error('Вторая попытка парсинга не удалась:', secondError);
+              throw new Error('Не удалось распарсить JSON из ответа');
+            }
+          } else {
+            throw new Error('JSON не найден в ответе');
+          }
+        }
+        
+        if (!parsedAnalysis.usage) parsedAnalysis.usage = [];
+        if (!parsedAnalysis.advantages) parsedAnalysis.advantages = [];
+        if (!parsedAnalysis.disadvantages) parsedAnalysis.disadvantages = [];
+        if (!parsedAnalysis.gender_distribution) {
+          parsedAnalysis.gender_distribution = { male: 50, female: 50 };
+        }
+        if (!parsedAnalysis.discovery_sources) parsedAnalysis.discovery_sources = [];
+        if (!parsedAnalysis.competitor_comparison) parsedAnalysis.competitor_comparison = [];
+        if (!parsedAnalysis.rating_distribution) {
+          parsedAnalysis.rating_distribution = { "1": 0, "2": 0, "3": 0, "4": 0, "5": 0 };
+        }
+        
+        saveReviewCategories(parsedAnalysis, reviews);
+        
+        console.log('Анализ успешно получен и обработан');
+        return parsedAnalysis;
+        
+      } catch (error) {
+        console.error('Критическая ошибка при анализе:', error);
+        throw error;
+      }
+    }
+
+    function saveReviewCategories(analysis, reviews) {
+      reviewCategories.clear();
+      
+      if (!analysis || !reviews) {
+        console.warn('Нет данных для сохранения категорий');
+        return;
+      }
+      
+      const categories = [
+        { key: 'usage', data: analysis.usage || [] },
+        { key: 'advantages', data: analysis.advantages || [] },
+        { key: 'disadvantages', data: analysis.disadvantages || [] },
+        { key: 'discovery_sources', data: analysis.discovery_sources || [] },
+        { key: 'competitor_comparison', data: analysis.competitor_comparison || [] }
+      ];
+      
+      categories.forEach(category => {
+        if (category.data && Array.isArray(category.data)) {
+          category.data.forEach(item => {
+            if (item && item.name) {
+              const categoryKey = (category.key + '_' + item.name).replace(/[^a-zA-Z0-9_]/g, '_');
+              
+              if (item.review_ids && Array.isArray(item.review_ids)) {
+                const categoryReviews = item.review_ids
+                  .map(id => {
+                    const reviewIndex = Math.max(0, Math.min(id - 1, reviews.length - 1));
+                    return reviews[reviewIndex];
+                  })
+                  .filter(review => review && review.text && review.text.trim().length > 0)
+                  .slice(0, 5);
+                
+                if (categoryReviews.length > 0) {
+                  reviewCategories.set(categoryKey, categoryReviews);
+                }
+              }
+            }
+          });
+        }
+      });
+      
+      console.log('Сохранено категорий:', reviewCategories.size);
+    }
+
+    function createStars(rating, count = 5) {
+      let starsHtml = '';
+      for (let i = 1; i <= count; i++) {
+        if (i <= rating) {
+          starsHtml += '<span class="star">★</span>';
+        } else {
+          starsHtml += '<span class="star" style="color: #ddd">★</span>';
+        }
+      }
+      return starsHtml;
+    }
+
+    function displayUsageAnalysis(analysis, reviews) {
+      if (!analysis) {
+        analyticsContent.innerHTML =
+          '<div class="analytics-loading">' +
+            '<p>Не удалось проанализировать отзывы</p>' +
+          '</div>';
+        return;
+      }
+
+      var ratingStatsHtml = '';
+      if (analysis.rating_distribution) {
+        ratingStatsHtml =
+          '<div class="rating-stats">' +
+            '<div class="card-title" style="margin-bottom: 10px;">Распределение оценок</div>' +
+            Object.entries(analysis.rating_distribution).map(function(entry) {
+              var stars = entry[0];
+              var count = entry[1];
+              return '<div class="rating-stat-item">' +
+                '<div class="rating-stars">' + createStars(parseInt(stars)) + '</div>' +
+                '<div class="rating-count">' + count + ' отзывов</div>' +
+              '</div>';
+            }).join('') +
+          '</div>';
+      }
+
+      function renderCategoryItems(items, prefix) {
+        if (!items) return '<p>Нет данных</p>';
+        return items.map(function(item) {
+          return '<div class="category-item" onclick="showReviewsForCategory(\\'' + prefix + '_' + item.name.replace(/'/g, "\\\\'") + '\\')">' +
+            '<span class="category-name">' + item.name + '</span>' +
+            '<span class="category-percentage">' + item.percentage + '%</span>' +
+          '</div>';
+        }).join('');
+      }
+
+      var genderMale = (analysis.gender_distribution && analysis.gender_distribution.male) || 0;
+      var genderFemale = (analysis.gender_distribution && analysis.gender_distribution.female) || 0;
+
+      var competitorHtml = '<p>Нет данных</p>';
+      if (analysis.competitor_comparison) {
+        competitorHtml = analysis.competitor_comparison.map(function(item) {
+          var isBetter = item.name.includes('лучше');
+          var className = isBetter ? 'comparison-better' : 'comparison-worse';
+          var displayName = item.name.replace(' - лучше', '').replace(' - хуже', '');
+          return '<div class="category-item" onclick="showReviewsForCategory(\\'competitor_comparison_' + item.name.replace(/'/g, "\\\\'") + '\\')">' +
+            '<span class="category-name">' + displayName + '</span>' +
+            '<span class="category-percentage ' + className + '">' + item.percentage + '% ' + (isBetter ? '👍' : '👎') + '</span>' +
+          '</div>';
+        }).join('');
+      }
+
+      analyticsContent.innerHTML =
+        '<div class="analytics-grid">' +
+          '<div class="analytics-card">' +
+            '<div class="card-title">Применение товара</div>' +
+            renderCategoryItems(analysis.usage, 'usage') +
+          '</div>' +
+          '<div class="analytics-card">' +
+            '<div class="card-title">Достоинства</div>' +
+            renderCategoryItems(analysis.advantages, 'advantages') +
+          '</div>' +
+          '<div class="analytics-card">' +
+            '<div class="card-title">Недостатки</div>' +
+            renderCategoryItems(analysis.disadvantages, 'disadvantages') +
+          '</div>' +
+          '<div class="analytics-card">' +
+            '<div class="card-title">Покупатели</div>' +
+            '<div class="gender-stats">' +
+              '<div class="gender-item">' +
+                '<div class="gender-icon gender-male">👨</div>' +
+                '<div class="gender-percentage">' + genderMale + '%</div>' +
+                '<div class="gender-label">Мужчины</div>' +
+              '</div>' +
+              '<div class="gender-item">' +
+                '<div class="gender-icon gender-female">👩</div>' +
+                '<div class="gender-percentage">' + genderFemale + '%</div>' +
+                '<div class="gender-label">Женщины</div>' +
+              '</div>' +
+            '</div>' +
+            ratingStatsHtml +
+          '</div>' +
+          '<div class="analytics-card">' +
+            '<div class="card-title">Источники информации</div>' +
+            renderCategoryItems(analysis.discovery_sources, 'discovery_sources') +
+          '</div>' +
+          '<div class="analytics-card">' +
+            '<div class="card-title">Сравнение с конкурентами</div>' +
+            competitorHtml +
+          '</div>' +
+        '</div>';
+    }
+
+    function showReviewsForCategory(categoryKey) {
+      var reviews = reviewCategories.get(categoryKey);
+
+      if (!reviews || reviews.length === 0) {
+        modalTitle.textContent = 'Отзывы по категории';
+        modalReviews.innerHTML = '<p>Нет отзывов для этой категории</p>';
+      } else {
+        var categoryName = categoryKey.split('_').slice(1).join(' ');
+        modalTitle.textContent = categoryName + ' - отзывы';
+        modalReviews.innerHTML = reviews.map(function(review) { return createReviewCard(review); }).join('');
+      }
+
+      reviewsModal.style.display = 'block';
+    }
+
+    function createReviewCard(review) {
+      var productInfo = productsMap.get(review.sku.toString()) || {
+        name: 'Товар ' + review.sku,
+        image: null
+      };
+      
+      let starsHtml = '';
+      for (let i = 1; i <= 5; i++) {
+        if (i <= review.rating) {
+          starsHtml += '<span class="star">★</span>';
+        } else {
+          starsHtml += '<span class="star" style="color: #ddd">★</span>';
+        }
+      }
+      
+      const reviewDate = new Date(review.published_at);
+      const formattedDate = reviewDate.toLocaleDateString('ru-RU');
+      
+      let statusClass = '';
+      let statusText = '';
+      
+      switch(review.status) {
+        case 'PUBLISHED':
+          statusClass = 'status-published';
+          statusText = 'Опубликован';
+          break;
+        case 'MODERATING':
+          statusClass = 'status-unpublished';
+          statusText = 'На модерации';
+          break;
+        case 'HIDDEN':
+          statusClass = 'status-unpublished';
+          statusText = 'Скрыт';
+          break;
+        default:
+          statusClass = 'status-unpublished';
+          statusText = review.status || 'Неизвестно';
+      }
+      
+      var mediaHtml = '';
+      if (review.photos_amount > 0 || review.videos_amount > 0 || review.comments_amount > 0) {
+        mediaHtml = '<div class="media-count">';
+        if (review.photos_amount > 0) {
+          mediaHtml += '<div class="media-item">📷 ' + review.photos_amount + ' фото</div>';
+        }
+        if (review.videos_amount > 0) {
+          mediaHtml += '<div class="media-item">🎥 ' + review.videos_amount + ' видео</div>';
+        }
+        if (review.comments_amount > 0) {
+          mediaHtml += '<div class="media-item">💬 ' + review.comments_amount + ' коммент.</div>';
+        }
+        mediaHtml += '</div>';
+      }
+
+      var productImageHtml = productInfo.image ?
+        '<img src="' + productInfo.image + '" alt="' + productInfo.name + '" class="product-image">' :
+        '<div class="product-image">Нет фото</div>';
+
+      return '<div class="review-card">' +
+          '<div class="product-info">' +
+            productImageHtml +
+            '<div class="product-name">' + productInfo.name + '</div>' +
+          '</div>' +
+          '<div class="rating">' +
+            starsHtml +
+            '<span style="margin-left: 10px; font-weight: bold;">' + review.rating + '/5</span>' +
+          '</div>' +
+          '<div class="review-text">' +
+            review.text +
+          '</div>' +
+          mediaHtml +
+          '<div class="review-meta">' +
+            '<span>' + formattedDate + '</span>' +
+            '<span class="status ' + statusClass + '">' + statusText + '</span>' +
+          '</div>' +
+        '</div>';
+    }
+
+    async function fetchProductsInfo() {
+      const skus = [...new Set(allReviews.map(review => review.sku.toString()))];
+      
+      if (skus.length === 0) return;
+      
+      try {
+        const skuBatches = [];
+        for (let i = 0; i < skus.length; i += 100) {
+          skuBatches.push(skus.slice(i, i + 100));
+        }
+        
+        const credentials = { clientId: API_CONFIG.clientId, apiKey: API_CONFIG.apiKey };
+
+        for (const skuBatch of skuBatches) {
+          const requestBody = {
+            sku: skuBatch
+          };
+          
+          const response = await fetch(API_CONFIG.baseUrl + '/v3/product/info/list', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Client-Id': credentials.clientId,
+              'Api-Key': credentials.apiKey
+            },
+            body: JSON.stringify(requestBody)
+          });
+          
+          if (!response.ok) {
+            throw new Error('HTTP error! status: ' + response.status);
+          }
+          
+          const data = await response.json();
+          
+          if (data.result && data.result.items) {
+            data.result.items.forEach(item => {
+              productsMap.set(item.sku.toString(), {
+                name: item.name || ('Товар ' + item.sku),
+                image: item.primary_image || (item.images && item.images.length > 0 ? item.images[0] : null)
+              });
+            });
+          } else if (data.items) {
+            data.items.forEach(item => {
+              productsMap.set(item.sku.toString(), {
+                name: item.name || ('Товар ' + item.sku),
+                image: item.primary_image || (item.images && item.images.length > 0 ? item.images[0] : null)
+              });
+            });
+          } else {
+            console.warn('Неожиданная структура ответа от API товаров:', data);
+          }
+        }
+        
+      } catch (error) {
+        console.error('Ошибка при получении информации о товарах:', error);
+        const skus = [...new Set(allReviews.map(review => review.sku.toString()))];
+        skus.forEach(sku => {
+          if (!productsMap.has(sku)) {
+            productsMap.set(sku, {
+              name: 'Товар ' + sku,
+              image: null
+            });
+          }
+        });
+      }
+    }
+
+    function populateProductSelect() {
+      while (productSelect.children.length > 1) {
+        productSelect.removeChild(productSelect.lastChild);
+      }
+      
+      const uniqueSkus = [...new Set(allReviews.map(review => review.sku.toString()))];
+      
+      uniqueSkus.forEach(sku => {
+        const product = productsMap.get(sku);
+        const option = document.createElement('option');
+        option.value = sku;
+        option.textContent = product ? product.name : ('Товар ' + sku);
+        productSelect.appendChild(option);
+      });
+    }
+
+    function downloadReviews() {
+      if (!currentSelectedProduct) {
+        showError('Пожалуйста, выберите товар для скачивания отзывов');
+        return;
+      }
+      
+      const productReviews = allReviews.filter(review => 
+        review.sku.toString() === currentSelectedProduct
+      );
+      
+      if (productReviews.length === 0) {
+        showError('Нет отзывов для выбранного товара');
+        return;
+      }
+      
+      const productName = productsMap.get(currentSelectedProduct)?.name || 'Неизвестный товар';
+      
+      var fileContent = 'Отзывы на товар: ' + productName + '\\n';
+      fileContent += 'Дата экспорта: ' + new Date().toLocaleString('ru-RU') + '\\n';
+      fileContent += 'Количество отзывов: ' + productReviews.length + '\\n\\n';
+      fileContent += '='.repeat(50) + '\\n\\n';
+      
+      productReviews.forEach((review, index) => {
+        fileContent += 'Отзыв ' + (index + 1) + ':\\n';
+        fileContent += 'Рейтинг: ' + review.rating + '/5\\n';
+        fileContent += 'Дата: ' + new Date(review.published_at).toLocaleDateString('ru-RU') + '\\n';
+        fileContent += 'Статус: ' + getStatusText(review.status) + '\\n';
+        fileContent += 'Текст отзыва:\\n' + review.text + '\\n';
+
+        if (review.photos_amount > 0 || review.videos_amount > 0) {
+          fileContent += 'Медиа: ';
+          if (review.photos_amount > 0) fileContent += '📷 ' + review.photos_amount + ' фото ';
+          if (review.videos_amount > 0) fileContent += '🎥 ' + review.videos_amount + ' видео';
+          fileContent += '\\n';
+        }
+        
+        fileContent += '\\n' + '='.repeat(50) + '\\n\\n';
+      });
+      
+      const blob = new Blob([fileContent], { type: 'text/plain;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'отзывы_' + productName.replace(/[^a-z0-9]/gi, '_') + '_' + new Date().toISOString().split('T')[0] + '.txt';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }
+
+    function getStatusText(status) {
+      switch(status) {
+        case 'PUBLISHED': return 'Опубликован';
+        case 'MODERATING': return 'На модерации';
+        case 'HIDDEN': return 'Скрыт';
+        default: return status;
+      }
+    }
+
+    function displayReviews(reviews) {
+      reviewsContainer.innerHTML = '';
+      
+      if (reviews.length === 0) {
+        reviewsContainer.innerHTML = '<div class="no-reviews">Нет отзывов для отображения</div>';
+        return;
+      }
+      
+      reviews.forEach(review => {
+        const reviewCard = document.createElement('div');
+        reviewCard.innerHTML = createReviewCard(review);
+        reviewsContainer.appendChild(reviewCard);
+      });
+    }
+
+    function showLoading() {
+      reviewsContainer.innerHTML = '<div class="loading">Загрузка отзывов...</div>';
+    }
+
+    function showError(message) {
+      errorMessage.textContent = message;
+      errorMessage.style.display = 'block';
+      
+      setTimeout(() => {
+        errorMessage.style.display = 'none';
+      }, 5000);
+    }
+
+    function showSuccess(message) {
+      successMessage.textContent = message;
+      successMessage.style.display = 'block';
+      
+      setTimeout(() => {
+        successMessage.style.display = 'none';
+      }, 5000);
+    }
+
+    function showInfo(message) {
+      successMessage.textContent = message;
+      successMessage.style.display = 'block';
+      successMessage.style.backgroundColor = '#e7f3ff';
+      successMessage.style.color = '#0066cc';
+    }
+
+    window.showReviewsForCategory = showReviewsForCategory;
+  </script>
+` }) %>
+
