@@ -488,79 +488,65 @@ router.post('/api/parse-prices', async (req, res) => {
     });
   }
 
-  console.log(`🔍 Parsing ${uniqueSkus.length} SKUs via Selenium`);
+  console.log(`🔍 Parsing ${uniqueSkus.length} SKUs via Puppeteer Stealth`);
 
   try {
-    const { Builder, By, until } = require('selenium-webdriver');
-    const chrome = require('selenium-webdriver/chrome');
+    const puppeteer = require('puppeteer-extra');
+    const StealthPlugin = require('puppeteer-extra-plugin-stealth');
+    puppeteer.use(StealthPlugin());
 
     const results = [];
-    let driver = null;
-
-    // Локальный прокси-сервер для авторизации
-    let localProxyServer = null;
+    let browser = null;
     let localProxyUrl = null;
 
-    // Функция создания нового драйвера
-    const createDriver = async () => {
-      const options = new chrome.Options();
-      options.addArguments('--headless=new');
-      options.addArguments('--no-sandbox');
-      options.addArguments('--disable-dev-shm-usage');
-      options.addArguments('--disable-gpu');
-      options.addArguments('--window-size=1920,1080');
-      options.addArguments(`--user-agent=${OZON_UA}`);
-      options.addArguments('--disable-blink-features=AutomationControlled');
-      options.addArguments('--disable-automation');
-      options.addArguments('--disable-extensions');
-      options.addArguments('--disable-plugins');
-      options.addArguments('--disable-images');
+    // Функция создания браузера
+    const createBrowser = async () => {
+      const args = [
+        '--no-sandbox',
+        '--disable-setuid-sandbox',
+        '--disable-dev-shm-usage',
+        '--disable-accelerated-2d-canvas',
+        '--disable-gpu',
+        '--window-size=1920,1080',
+        '--disable-web-security',
+        '--disable-features=IsolateOrigins,site-per-process'
+      ];
 
-      // Добавляем прокси из списка через proxy-chain
+      // Добавляем прокси
       if (proxyEnabled && proxyList.length > 0) {
         const currentProxy = getRandomProxy();
         if (currentProxy) {
           try {
             const proxyChain = require('proxy-chain');
 
-            // Закрываем предыдущий локальный прокси если был
-            if (localProxyServer) {
-              try {
-                await proxyChain.closeAnonymizedProxy(localProxyUrl, true);
-              } catch (e) {}
+            // Закрываем предыдущий локальный прокси
+            if (localProxyUrl) {
+              try { await proxyChain.closeAnonymizedProxy(localProxyUrl, true); } catch (e) {}
             }
 
-            // Создаем URL прокси с авторизацией
             const proxyUrl = currentProxy.username && currentProxy.password
               ? `http://${currentProxy.username}:${currentProxy.password}@${currentProxy.host}:${currentProxy.port}`
               : `http://${currentProxy.host}:${currentProxy.port}`;
 
-            // Создаем локальный анонимный прокси
             localProxyUrl = await proxyChain.anonymizeProxy(proxyUrl);
             console.log(`🌐 Прокси: ${currentProxy.host}:${currentProxy.port} → ${localProxyUrl}`);
-
-            options.addArguments(`--proxy-server=${localProxyUrl}`);
+            args.push(`--proxy-server=${localProxyUrl}`);
           } catch (e) {
             console.error(`❌ Ошибка настройки прокси: ${e.message}`);
           }
         }
       }
 
-      const newDriver = await new Builder().forBrowser('chrome').setChromeOptions(options).build();
-      await newDriver.manage().setTimeouts({ implicit: 10000, pageLoad: 20000, script: 20000 });
+      const newBrowser = await puppeteer.launch({
+        headless: 'new',
+        args,
+        executablePath: process.env.CHROME_BIN || '/usr/bin/google-chrome'
+      });
 
-      // Прогреваем сессию
-      try {
-        await newDriver.get('https://www.ozon.ru');
-        await newDriver.sleep(2000);
-      } catch (e) {
-        // ignore
-      }
-
-      return newDriver;
+      return newBrowser;
     };
 
-    // Функция закрытия локального прокси
+    // Функция закрытия прокси
     const closeLocalProxy = async () => {
       if (localProxyUrl) {
         try {
@@ -572,9 +558,24 @@ router.post('/api/parse-prices', async (req, res) => {
     };
 
     try {
-      driver = await createDriver();
+      browser = await createBrowser();
+      let page = await browser.newPage();
 
-      // Количество запросов до перезапуска браузера (рандомизируем 10-15)
+      // Настройки страницы
+      await page.setUserAgent(OZON_UA);
+      await page.setViewport({ width: 1920, height: 1080 });
+      await page.setExtraHTTPHeaders({
+        'Accept-Language': 'ru-RU,ru;q=0.9,en-US;q=0.8,en;q=0.7'
+      });
+
+      // Прогрев сессии
+      try {
+        await page.goto('https://www.ozon.ru', { waitUntil: 'domcontentloaded', timeout: 30000 });
+        await page.waitForTimeout(2000 + Math.random() * 1000);
+      } catch (e) {
+        console.log('Прогрев не удался, продолжаем...');
+      }
+
       let requestsBeforeRestart = 10 + Math.floor(Math.random() * 6);
       let requestCount = 0;
 
@@ -584,37 +585,36 @@ router.post('/api/parse-prices', async (req, res) => {
 
         try {
           const apiUrl = `https://www.ozon.ru/api/entrypoint-api.bx/page/json/v2?url=%2Fproduct%2F${sku}`;
-          await driver.get(apiUrl);
 
-          let jsonText = '';
-          for (let attempts = 0; attempts < 3 && (!jsonText || jsonText.length < 50); attempts++) {
-            try {
-              await driver.wait(until.elementLocated(By.css('body')), 8000);
-              try {
-                const preEl = await driver.findElement(By.css('pre'));
-                jsonText = await preEl.getText();
-              } catch {
-                const bodyEl = await driver.findElement(By.css('body'));
-                jsonText = await bodyEl.getText();
-              }
-              if (jsonText.length < 50) await driver.sleep(1000);
-            } catch {
-              await driver.sleep(1000);
-            }
-          }
+          await page.goto(apiUrl, { waitUntil: 'domcontentloaded', timeout: 30000 });
+          await page.waitForTimeout(500 + Math.random() * 500);
 
-          // Проверяем на капчу
-          const isCaptcha = jsonText && (jsonText.includes('не бот') || jsonText.includes('пазл') || jsonText.includes('Подтвердите'));
+          let jsonText = await page.evaluate(() => {
+            const pre = document.querySelector('pre');
+            if (pre) return pre.textContent;
+            return document.body.textContent || '';
+          });
 
-          if (isCaptcha) {
-            console.log(`🤖 [${i + 1}/${uniqueSkus.length}] Обнаружена капча! Перезапуск браузера...`);
-            try { await driver.quit(); } catch (e) {}
-            await new Promise(r => setTimeout(r, 3000 + Math.random() * 2000));
-            driver = await createDriver();
+          // Проверяем на блокировку
+          const isBlocked = jsonText && (
+            jsonText.includes('Доступ ограничен') ||
+            jsonText.includes('не бот') ||
+            jsonText.includes('пазл') ||
+            jsonText.includes('Подтвердите')
+          );
+
+          if (isBlocked) {
+            console.log(`🤖 [${i + 1}/${uniqueSkus.length}] Блокировка! Меняем прокси...`);
+            await page.close();
+            await browser.close();
+            await closeLocalProxy();
+            await new Promise(r => setTimeout(r, 2000 + Math.random() * 2000));
+            browser = await createBrowser();
+            page = await browser.newPage();
+            await page.setUserAgent(OZON_UA);
+            await page.setViewport({ width: 1920, height: 1080 });
             requestCount = 0;
             requestsBeforeRestart = 10 + Math.floor(Math.random() * 6);
-
-            // Повторяем запрос после перезапуска
             i--;
             continue;
           }
@@ -624,9 +624,10 @@ router.post('/api/parse-prices', async (req, res) => {
             sku,
             price: cardPrice || 'Цена не найдена',
             success: !!cardPrice,
-            source: 'json_api',
+            source: 'puppeteer_stealth',
             error: cardPrice ? undefined : 'cardPrice not found'
           });
+
           if (cardPrice) {
             console.log(`✅ [${i + 1}/${uniqueSkus.length}] SKU ${sku}: ${cardPrice}`);
           } else {
@@ -642,19 +643,23 @@ router.post('/api/parse-prices', async (req, res) => {
           requestCount++;
         }
 
-        // Перезапуск браузера каждые N запросов для избежания капчи
+        // Перезапуск браузера с новым прокси
         if (requestCount >= requestsBeforeRestart && i < uniqueSkus.length - 1) {
-          console.log(`🔄 Превентивный перезапуск браузера после ${requestCount} запросов...`);
-          try { await driver.quit(); } catch (e) {}
-          await new Promise(r => setTimeout(r, 2000 + Math.random() * 2000));
-          driver = await createDriver();
+          console.log(`🔄 Превентивная смена прокси после ${requestCount} запросов...`);
+          await page.close();
+          await browser.close();
+          await closeLocalProxy();
+          await new Promise(r => setTimeout(r, 1500 + Math.random() * 1500));
+          browser = await createBrowser();
+          page = await browser.newPage();
+          await page.setUserAgent(OZON_UA);
+          await page.setViewport({ width: 1920, height: 1080 });
           requestCount = 0;
           requestsBeforeRestart = 10 + Math.floor(Math.random() * 6);
         }
 
         if (i < uniqueSkus.length - 1) {
-          const delay = 500 + Math.random() * 300;
-          await driver.sleep(delay);
+          await page.waitForTimeout(500 + Math.random() * 500);
         }
       }
 
@@ -666,8 +671,8 @@ router.post('/api/parse-prices', async (req, res) => {
         timestamp: new Date().toISOString()
       });
     } finally {
-      if (driver) {
-        try { await driver.quit(); } catch (e) { console.error('Driver quit error:', e); }
+      if (browser) {
+        try { await browser.close(); } catch (e) {}
       }
       await closeLocalProxy();
     }
@@ -677,15 +682,15 @@ router.post('/api/parse-prices', async (req, res) => {
     if (isModuleNotFound) {
       return res.status(503).json({
         success: false,
-        error: 'Selenium не настроен. Установите: npm install selenium-webdriver chromedriver',
-        hint: 'npm install selenium-webdriver chromedriver'
+        error: 'Puppeteer не установлен',
+        hint: 'npm install puppeteer puppeteer-extra puppeteer-extra-plugin-stealth'
       });
     }
     console.error('Price parsing error:', error);
     res.status(503).json({
       success: false,
       error: error.message || String(error),
-      hint: 'Перезапустите сервер после npm install.'
+      hint: 'Проверьте логи контейнера'
     });
   }
 });

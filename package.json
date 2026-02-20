@@ -19,6 +19,9 @@
     "express-validator": "^7.0.1",
     "multer": "^2.0.2",
     "proxy-chain": "^2.7.1",
+    "puppeteer": "^22.15.0",
+    "puppeteer-extra": "^3.3.6",
+    "puppeteer-extra-plugin-stealth": "^2.11.2",
     "selenium-webdriver": "^4.40.0"
   },
   "devDependencies": {

@@ -43,14 +43,16 @@ RUN apt-get update && apt-get install -y \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
-# Set Chrome path
+# Set Chrome path and skip Puppeteer Chromium download
 ENV CHROME_BIN=/usr/bin/google-chrome
+ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
+ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/google-chrome
 
 WORKDIR /app
 
 # Copy package files and install production dependencies
 COPY package*.json ./
-RUN npm ci --only=production
+RUN npm ci --only=production --ignore-scripts
 
 # Copy built CSS and source code
 COPY --from=builder /app/src/public/css/styles.css ./src/public/css/styles.css
