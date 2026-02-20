@@ -557,6 +557,9 @@ router.post('/api/parse-prices', async (req, res) => {
       }
     };
 
+    // Helper function for delay (waitForTimeout removed in newer Puppeteer)
+    const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
+
     try {
       browser = await createBrowser();
       let page = await browser.newPage();
@@ -571,7 +574,7 @@ router.post('/api/parse-prices', async (req, res) => {
       // Прогрев сессии
       try {
         await page.goto('https://www.ozon.ru', { waitUntil: 'domcontentloaded', timeout: 30000 });
-        await page.waitForTimeout(2000 + Math.random() * 1000);
+        await delay(2000 + Math.random() * 1000);
       } catch (e) {
         console.log('Прогрев не удался, продолжаем...');
       }
@@ -587,7 +590,7 @@ router.post('/api/parse-prices', async (req, res) => {
           const apiUrl = `https://www.ozon.ru/api/entrypoint-api.bx/page/json/v2?url=%2Fproduct%2F${sku}`;
 
           await page.goto(apiUrl, { waitUntil: 'domcontentloaded', timeout: 30000 });
-          await page.waitForTimeout(500 + Math.random() * 500);
+          await delay(500 + Math.random() * 500);
 
           let jsonText = await page.evaluate(() => {
             const pre = document.querySelector('pre');
@@ -659,7 +662,7 @@ router.post('/api/parse-prices', async (req, res) => {
         }
 
         if (i < uniqueSkus.length - 1) {
-          await page.waitForTimeout(500 + Math.random() * 500);
+          await delay(500 + Math.random() * 500);
         }
       }
 
