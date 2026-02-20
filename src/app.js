@@ -15,6 +15,9 @@ const pricecheckRoutes = require('./routes/pricecheck');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+// Trust proxy (required for secure cookies behind Apache/Nginx)
+app.set('trust proxy', 1);
+
 // Initialize database
 initDatabase();
 
@@ -33,7 +36,9 @@ app.use(
     resave: false,
     saveUninitialized: false,
     cookie: {
-      secure: process.env.NODE_ENV === 'production',
+      secure: true,
+      httpOnly: true,
+      sameSite: 'lax',
       maxAge: 24 * 60 * 60 * 1000, // 24 hours
     },
   })
