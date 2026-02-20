@@ -607,20 +607,39 @@ router.post('/api/parse-prices', async (req, res) => {
           );
 
           if (isBlocked) {
-            console.log(`🤖 [${i + 1}/${uniqueSkus.length}] Блокировка! Меняем прокси...`);
-            await page.close();
-            await browser.close();
-            await closeLocalProxy();
-            await new Promise(r => setTimeout(r, 2000 + Math.random() * 2000));
-            browser = await createBrowser();
-            page = await browser.newPage();
-            await page.setUserAgent(OZON_UA);
-            await page.setViewport({ width: 1920, height: 1080 });
-            requestCount = 0;
-            requestsBeforeRestart = 10 + Math.floor(Math.random() * 6);
-            i--;
+            // Ограничиваем количество попыток для одного SKU
+            if (!results.find(r => r.sku === sku)) {
+              const retryCount = (page._retryCount || 0) + 1;
+              if (retryCount <= 3) {
+                console.log(`🤖 [${i + 1}/${uniqueSkus.length}] Блокировка (попытка ${retryCount}/3)! Меняем прокси...`);
+                console.log(`📄 Ответ: ${jsonText.substring(0, 200)}`);
+                await page.close();
+                await browser.close();
+                await closeLocalProxy();
+                await delay(3000 + Math.random() * 3000);
+                browser = await createBrowser();
+                page = await browser.newPage();
+                page._retryCount = retryCount;
+                await page.setUserAgent(OZON_UA);
+                await page.setViewport({ width: 1920, height: 1080 });
+                requestCount = 0;
+                i--;
+                continue;
+              }
+            }
+            // Если 3 попытки не помогли - записываем ошибку и продолжаем
+            console.log(`❌ [${i + 1}/${uniqueSkus.length}] SKU ${sku}: Заблокирован после 3 попыток`);
+            results.push({
+              sku,
+              price: 'Заблокировано',
+              success: false,
+              error: 'Ozon заблокировал все прокси'
+            });
+            page._retryCount = 0;
+            requestCount++;
             continue;
           }
+          page._retryCount = 0;
 
           const cardPrice = (jsonText && jsonText.length >= 50) ? extractOzonCardPrice(jsonText) : null;
           results.push({
