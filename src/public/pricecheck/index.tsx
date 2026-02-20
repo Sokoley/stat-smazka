@@ -1827,13 +1827,13 @@ const fetchOzonPrices = async (offerIds: string[], ozonData: Record<string, Ozon
         return;
       }
 
-      setParsingProgress({ 
-        current: 0, 
-        total: uniqueSkus.length, 
-        status: 'Отправляем запрос на сервер парсинга...' 
+      setParsingProgress({
+        current: 0,
+        total: uniqueSkus.length,
+        status: 'Ожидание локального парсера...'
       });
 
-      const response = await fetch(`${PARSER_API_URL}/parse-prices`, {
+      const response = await fetch(`${PARSER_API_URL}/parse-local`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
