@@ -12,6 +12,12 @@ services:
     environment:
       - NODE_ENV=production
       - PORT=3000
+      # Proxy settings (uncomment and fill to enable)
+      # - PROXY_ENABLED=true
+      # - PROXY_HOST=proxy.example.com
+      # - PROXY_PORT=8080
+      # - PROXY_USERNAME=user
+      # - PROXY_PASSWORD=pass
     shm_size: '2gb'  # Required for Chrome
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/"]

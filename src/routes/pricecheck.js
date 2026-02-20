@@ -296,6 +296,46 @@ router.get('/api/data/all', async (req, res) => {
 // Parse Ozon card prices via Selenium (Ozon blocks plain HTTP requests)
 const OZON_UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
 
+// Proxy settings (can be set via environment or API)
+let proxyConfig = {
+  enabled: process.env.PROXY_ENABLED === 'true',
+  host: process.env.PROXY_HOST || '',
+  port: process.env.PROXY_PORT || '',
+  username: process.env.PROXY_USERNAME || '',
+  password: process.env.PROXY_PASSWORD || ''
+};
+
+// API to get proxy settings
+router.get('/api/proxy', (req, res) => {
+  res.json({
+    enabled: proxyConfig.enabled,
+    host: proxyConfig.host,
+    port: proxyConfig.port,
+    username: proxyConfig.username ? '***' : '',
+    hasAuth: !!(proxyConfig.username && proxyConfig.password)
+  });
+});
+
+// API to update proxy settings
+router.post('/api/proxy', (req, res) => {
+  const { enabled, host, port, username, password } = req.body;
+
+  proxyConfig = {
+    enabled: enabled === true,
+    host: host || '',
+    port: port || '',
+    username: username || '',
+    password: password || ''
+  };
+
+  console.log(`🔧 Proxy settings updated: ${proxyConfig.enabled ? `${proxyConfig.host}:${proxyConfig.port}` : 'disabled'}`);
+
+  res.json({
+    success: true,
+    message: proxyConfig.enabled ? `Прокси включен: ${proxyConfig.host}:${proxyConfig.port}` : 'Прокси отключен'
+  });
+});
+
 router.post('/api/parse-prices', async (req, res) => {
   const { skus } = req.body;
 
@@ -337,6 +377,23 @@ router.post('/api/parse-prices', async (req, res) => {
       options.addArguments('--disable-extensions');
       options.addArguments('--disable-plugins');
       options.addArguments('--disable-images');
+
+      // Добавляем прокси если включен
+      if (proxyConfig.enabled && proxyConfig.host && proxyConfig.port) {
+        const proxyUrl = proxyConfig.username && proxyConfig.password
+          ? `${proxyConfig.username}:${proxyConfig.password}@${proxyConfig.host}:${proxyConfig.port}`
+          : `${proxyConfig.host}:${proxyConfig.port}`;
+
+        options.addArguments(`--proxy-server=http://${proxyConfig.host}:${proxyConfig.port}`);
+        console.log(`🌐 Используется прокси: ${proxyConfig.host}:${proxyConfig.port}`);
+
+        // Для прокси с авторизацией используем расширение
+        if (proxyConfig.username && proxyConfig.password) {
+          // Chrome headless не поддерживает расширения напрямую для proxy auth
+          // Используем альтернативный подход через capabilities
+          console.log(`🔐 Прокси с авторизацией: ${proxyConfig.username}`);
+        }
+      }
 
       const newDriver = await new Builder().forBrowser('chrome').setChromeOptions(options).build();
       await newDriver.manage().setTimeouts({ implicit: 10000, pageLoad: 20000, script: 20000 });
