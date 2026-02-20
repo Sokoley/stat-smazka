@@ -35,7 +35,13 @@ router.get('/frame', (req, res) => {
   res.sendFile(path.join(PUBLIC_DIR, 'index.html'));
 });
 
-// Serve TSX file with correct MIME type for ES modules
+// Serve compiled JS file
+router.get('/app/index.js', (req, res) => {
+  res.type('application/javascript');
+  res.sendFile(path.join(PUBLIC_DIR, 'index.js'));
+});
+
+// Serve TSX file with correct MIME type (fallback for development)
 router.get('/app/index.tsx', (req, res) => {
   res.type('application/javascript');
   res.sendFile(path.join(PUBLIC_DIR, 'index.tsx'));

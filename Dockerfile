@@ -7,7 +7,7 @@ COPY package*.json ./
 RUN npm ci --only=production=false
 
 COPY . .
-RUN npm run build:css
+RUN npm run build
 
 # Production stage with Chrome for Selenium
 FROM node:20-slim
@@ -63,8 +63,9 @@ WORKDIR /app
 COPY package*.json ./
 RUN npm ci --only=production
 
-# Copy built CSS and source code
+# Copy built CSS, JS and source code
 COPY --from=builder /app/src/public/css/styles.css ./src/public/css/styles.css
+COPY --from=builder /app/src/public/pricecheck/index.js ./src/public/pricecheck/index.js
 COPY src ./src
 COPY tailwind.config.js ./
 COPY nodemon.json ./
