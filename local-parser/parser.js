@@ -1,9 +1,8 @@
 #!/usr/bin/env node
 /**
- * Локальный парсер цен Ozon
+ * Локальный парсер цен Ozon (Selenium)
  *
- * Запускается на домашнем ПК, получает задания с сервера,
- * парсит цены и отправляет результаты обратно.
+ * Парсит страницы товаров вместо API для обхода блокировок.
  *
  * Использование:
  *   npm install
@@ -11,112 +10,147 @@
  */
 
 const SERVER_URL = process.argv[2] || 'https://stat.smazka.ru';
-const POLL_INTERVAL = 5000; // Проверять задания каждые 5 сек
-const PARSE_DELAY = 1000; // Задержка между парсингом SKU
+const POLL_INTERVAL = 5000;
+const PARSE_DELAY = 2000; // Увеличенная задержка
 
-const puppeteer = require('puppeteer-extra');
-const StealthPlugin = require('puppeteer-extra-plugin-stealth');
-puppeteer.use(StealthPlugin());
+const { Builder, By, until } = require('selenium-webdriver');
+const chrome = require('selenium-webdriver/chrome');
 
 const OZON_UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
 
-let browser = null;
-let page = null;
+let driver = null;
+
+// Задержка
+const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
 
 // Инициализация браузера
 async function initBrowser() {
-  if (browser) return;
+  if (driver) return;
 
   console.log('🚀 Запуск браузера...');
-  browser = await puppeteer.launch({
-    headless: 'new',
-    args: [
-      '--no-sandbox',
-      '--disable-setuid-sandbox',
-      '--disable-dev-shm-usage',
-      '--disable-accelerated-2d-canvas',
-      '--disable-gpu',
-      '--window-size=1920,1080'
-    ]
+
+  const options = new chrome.Options();
+  // НЕ headless - показываем браузер для обхода детекции
+  // options.addArguments('--headless=new');
+  options.addArguments('--no-sandbox');
+  options.addArguments('--disable-dev-shm-usage');
+  options.addArguments('--disable-blink-features=AutomationControlled');
+  options.addArguments('--disable-automation');
+  options.addArguments('--window-size=1920,1080');
+  options.addArguments(`--user-agent=${OZON_UA}`);
+  options.addArguments('--disable-extensions');
+  options.excludeSwitches(['enable-automation']);
+  options.setUserPreferences({
+    'credentials_enable_service': false,
+    'profile.password_manager_enabled': false
   });
 
-  page = await browser.newPage();
-  await page.setUserAgent(OZON_UA);
-  await page.setViewport({ width: 1920, height: 1080 });
-  await page.setExtraHTTPHeaders({
-    'Accept-Language': 'ru-RU,ru;q=0.9,en-US;q=0.8,en;q=0.7'
-  });
+  driver = await new Builder()
+    .forBrowser('chrome')
+    .setChromeOptions(options)
+    .build();
 
-  // Прогрев
+  await driver.manage().setTimeouts({ implicit: 10000, pageLoad: 30000 });
+
+  // Скрываем webdriver
+  await driver.executeScript(`
+    Object.defineProperty(navigator, 'webdriver', { get: () => undefined });
+  `);
+
+  // Прогрев - заходим на главную
   try {
-    await page.goto('https://www.ozon.ru', { waitUntil: 'domcontentloaded', timeout: 30000 });
-    await delay(2000);
+    console.log('🔄 Прогрев сессии...');
+    await driver.get('https://www.ozon.ru');
+    await delay(3000);
     console.log('✅ Браузер готов');
   } catch (e) {
-    console.log('⚠️ Прогрев не удался:', e.message);
+    console.log('⚠️ Прогрев:', e.message);
   }
 }
 
 // Закрытие браузера
 async function closeBrowser() {
-  if (browser) {
-    await browser.close();
-    browser = null;
-    page = null;
+  if (driver) {
+    try {
+      await driver.quit();
+    } catch (e) {}
+    driver = null;
   }
 }
 
-// Задержка
-const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
-
-// Извлечение цены из JSON
-function extractOzonCardPrice(jsonText) {
-  try {
-    const patterns = [
-      /"cardPrice"\s*:\s*"([^"]+)"/,
-      /\{"isAvailable":true,"cardPrice":"([^"]+)"/,
-      /"ozonCardPrice":"([^"]+)"/
-    ];
-
-    for (const pattern of patterns) {
-      const match = jsonText.match(pattern);
-      if (match && match[1] && match[1].includes('₽')) {
-        return match[1].trim();
-      }
-    }
-    return null;
-  } catch (e) {
-    return null;
-  }
-}
-
-// Парсинг одного SKU
+// Парсинг цены со страницы товара
 async function parseSku(sku) {
-  if (!page) await initBrowser();
+  if (!driver) await initBrowser();
 
   try {
-    const apiUrl = `https://www.ozon.ru/api/entrypoint-api.bx/page/json/v2?url=%2Fproduct%2F${sku}`;
-    await page.goto(apiUrl, { waitUntil: 'domcontentloaded', timeout: 30000 });
-    await delay(500 + Math.random() * 500);
+    // Переходим на страницу товара
+    const url = `https://www.ozon.ru/product/${sku}/`;
+    console.log(`   Загрузка: ${url}`);
 
-    const jsonText = await page.evaluate(() => {
-      const pre = document.querySelector('pre');
-      if (pre) return pre.textContent;
-      return document.body.textContent || '';
-    });
+    await driver.get(url);
+    await delay(2000 + Math.random() * 1000);
 
-    // Проверка на блокировку
-    if (jsonText.includes('Доступ ограничен') || jsonText.includes('не бот')) {
+    // Проверяем на блокировку
+    const pageSource = await driver.getPageSource();
+    if (pageSource.includes('Доступ ограничен') ||
+        pageSource.includes('не бот') ||
+        pageSource.includes('Подтвердите')) {
       return { success: false, error: 'blocked', needRestart: true };
     }
 
-    const price = extractOzonCardPrice(jsonText);
-    return {
-      success: !!price,
-      price: price || 'Цена не найдена',
-      error: price ? null : 'price_not_found'
-    };
+    // Ищем цену с картой Ozon
+    let price = null;
+
+    // Способ 1: ищем через data-widget="webPrice"
+    try {
+      const priceWidget = await driver.findElement(By.css('[data-widget="webPrice"]'));
+      const priceText = await priceWidget.getText();
+
+      // Ищем цену с картой (обычно вторая цена или с пометкой "с Ozon Картой")
+      const priceMatch = priceText.match(/(\d[\d\s]*)\s*₽/g);
+      if (priceMatch && priceMatch.length > 0) {
+        // Берём первую найденную цену (обычно это цена с картой)
+        price = priceMatch[0].trim();
+      }
+    } catch (e) {}
+
+    // Способ 2: ищем span с ценой
+    if (!price) {
+      try {
+        const priceElements = await driver.findElements(By.css('span[class*="price"], span[class*="Price"]'));
+        for (const el of priceElements) {
+          const text = await el.getText();
+          if (text.includes('₽')) {
+            price = text.trim();
+            break;
+          }
+        }
+      } catch (e) {}
+    }
+
+    // Способ 3: ищем в JSON-LD
+    if (!price) {
+      try {
+        const scripts = await driver.findElements(By.css('script[type="application/ld+json"]'));
+        for (const script of scripts) {
+          const content = await script.getAttribute('innerHTML');
+          const priceMatch = content.match(/"price"\s*:\s*"?(\d+(?:\.\d+)?)"?/);
+          if (priceMatch) {
+            price = priceMatch[1] + ' ₽';
+            break;
+          }
+        }
+      } catch (e) {}
+    }
+
+    if (price) {
+      return { success: true, price };
+    } else {
+      return { success: false, error: 'price_not_found' };
+    }
+
   } catch (e) {
+    console.log(`   Ошибка: ${e.message}`);
     return { success: false, error: e.message };
   }
 }
@@ -128,13 +162,11 @@ async function getTask() {
     if (response.ok) {
       return await response.json();
     }
-  } catch (e) {
-    // Сервер недоступен
-  }
+  } catch (e) {}
   return null;
 }
 
-// Отправка результатов на сервер
+// Отправка результатов
 async function sendResults(results) {
   try {
     const response = await fetch(`${SERVER_URL}/pricecheck/api/parser/results`, {
@@ -153,15 +185,19 @@ async function sendResults(results) {
 async function main() {
   console.log(`
 ╔════════════════════════════════════════════╗
-║     Локальный парсер цен Ozon              ║
+║     Локальный парсер цен Ozon (Selenium)   ║
 ║                                            ║
 ║  Сервер: ${SERVER_URL.padEnd(30)}║
+║                                            ║
+║  Браузер будет виден (не headless)         ║
 ╚════════════════════════════════════════════╝
   `);
 
   await initBrowser();
 
-  console.log('🔄 Ожидание заданий...');
+  console.log('🔄 Ожидание заданий...\n');
+
+  let consecutiveBlocks = 0;
 
   while (true) {
     const task = await getTask();
@@ -170,7 +206,6 @@ async function main() {
       console.log(`\n📋 Получено задание: ${task.skus.length} SKU`);
 
       const results = [];
-      let blockedCount = 0;
 
       for (let i = 0; i < task.skus.length; i++) {
         const sku = task.skus[i];
@@ -179,21 +214,24 @@ async function main() {
         const result = await parseSku(sku);
 
         if (result.needRestart) {
-          console.log('🤖 Блокировка! Перезапуск браузера...');
-          await closeBrowser();
-          await delay(5000);
-          await initBrowser();
-          blockedCount++;
+          consecutiveBlocks++;
+          console.log(`🤖 Блокировка! (${consecutiveBlocks}/5)`);
 
-          if (blockedCount > 3) {
-            console.log('❌ Слишком много блокировок, пауза 30 сек...');
-            await delay(30000);
-            blockedCount = 0;
+          if (consecutiveBlocks >= 5) {
+            console.log('❌ Много блокировок. Пауза 60 сек...');
+            await closeBrowser();
+            await delay(60000);
+            await initBrowser();
+            consecutiveBlocks = 0;
+          } else {
+            await delay(10000);
           }
 
-          i--; // Повторить этот SKU
+          i--; // Повторить
           continue;
         }
+
+        consecutiveBlocks = 0;
 
         results.push({
           sku,
@@ -208,16 +246,15 @@ async function main() {
           console.log(`❌ ${sku}: ${result.error}`);
         }
 
-        await delay(PARSE_DELAY + Math.random() * 500);
+        // Задержка между запросами
+        await delay(PARSE_DELAY + Math.random() * 1000);
       }
 
-      // Отправка результатов
       console.log(`\n📤 Отправка ${results.length} результатов...`);
-      const sent = await sendResults(results);
-      if (sent) {
-        console.log('✅ Результаты отправлены');
+      if (await sendResults(results)) {
+        console.log('✅ Результаты отправлены\n');
       } else {
-        console.log('❌ Ошибка отправки результатов');
+        console.log('❌ Ошибка отправки\n');
       }
     }
 
@@ -225,9 +262,8 @@ async function main() {
   }
 }
 
-// Graceful shutdown
 process.on('SIGINT', async () => {
-  console.log('\n👋 Завершение работы...');
+  console.log('\n👋 Завершение...');
   await closeBrowser();
   process.exit(0);
 });
