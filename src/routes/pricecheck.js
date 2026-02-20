@@ -556,9 +556,9 @@ router.post('/api/parse-local', async (req, res) => {
   console.log(`📋 Создано задание ${currentTaskId} для локального парсера: ${uniqueSkus.length} SKU`);
   console.log(`📋 Очередь: ${parserQueue.length} SKU`);
 
-  // Ожидаем результаты (до 5 минут)
+  // Ожидаем результаты (до 90 сек - в пределах Apache proxy timeout)
   const startTime = Date.now();
-  const timeout = 5 * 60 * 1000;
+  const timeout = 90 * 1000;
 
   const checkResults = () => {
     return new Promise((resolve) => {
