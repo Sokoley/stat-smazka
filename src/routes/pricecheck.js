@@ -411,6 +411,10 @@ router.post('/api/parse-prices', async (req, res) => {
     const results = [];
     let driver = null;
 
+    // Локальный прокси-сервер для авторизации
+    let localProxyServer = null;
+    let localProxyUrl = null;
+
     // Функция создания нового драйвера
     const createDriver = async () => {
       const options = new chrome.Options();
@@ -426,39 +430,38 @@ router.post('/api/parse-prices', async (req, res) => {
       options.addArguments('--disable-plugins');
       options.addArguments('--disable-images');
 
-      // Добавляем прокси из списка
-      let currentProxy = null;
+      // Добавляем прокси из списка через proxy-chain
       if (proxyEnabled && proxyList.length > 0) {
-        currentProxy = getRandomProxy();
+        const currentProxy = getRandomProxy();
         if (currentProxy) {
-          options.addArguments(`--proxy-server=http://${currentProxy.host}:${currentProxy.port}`);
-          console.log(`🌐 Используется прокси: ${currentProxy.host}:${currentProxy.port}`);
+          try {
+            const proxyChain = require('proxy-chain');
+
+            // Закрываем предыдущий локальный прокси если был
+            if (localProxyServer) {
+              try {
+                await proxyChain.closeAnonymizedProxy(localProxyUrl, true);
+              } catch (e) {}
+            }
+
+            // Создаем URL прокси с авторизацией
+            const proxyUrl = currentProxy.username && currentProxy.password
+              ? `http://${currentProxy.username}:${currentProxy.password}@${currentProxy.host}:${currentProxy.port}`
+              : `http://${currentProxy.host}:${currentProxy.port}`;
+
+            // Создаем локальный анонимный прокси
+            localProxyUrl = await proxyChain.anonymizeProxy(proxyUrl);
+            console.log(`🌐 Прокси: ${currentProxy.host}:${currentProxy.port} → ${localProxyUrl}`);
+
+            options.addArguments(`--proxy-server=${localProxyUrl}`);
+          } catch (e) {
+            console.error(`❌ Ошибка настройки прокси: ${e.message}`);
+          }
         }
       }
 
       const newDriver = await new Builder().forBrowser('chrome').setChromeOptions(options).build();
       await newDriver.manage().setTimeouts({ implicit: 10000, pageLoad: 20000, script: 20000 });
-
-      // Для прокси с авторизацией выполняем аутентификацию через CDP
-      if (currentProxy && currentProxy.username && currentProxy.password) {
-        try {
-          const cdpConnection = await newDriver.createCDPConnection('page');
-          await cdpConnection.execute('Fetch.enable', {
-            handleAuthRequests: true
-          });
-          await cdpConnection.execute('Fetch.continueWithAuth', {
-            requestId: '',
-            authChallengeResponse: {
-              response: 'ProvideCredentials',
-              username: currentProxy.username,
-              password: currentProxy.password
-            }
-          });
-        } catch (e) {
-          // CDP auth может не работать, пробуем альтернативный метод
-          console.log(`🔐 Прокси аутентификация через CDP не удалась, используем URL-метод`);
-        }
-      }
 
       // Прогреваем сессию
       try {
@@ -469,6 +472,17 @@ router.post('/api/parse-prices', async (req, res) => {
       }
 
       return newDriver;
+    };
+
+    // Функция закрытия локального прокси
+    const closeLocalProxy = async () => {
+      if (localProxyUrl) {
+        try {
+          const proxyChain = require('proxy-chain');
+          await proxyChain.closeAnonymizedProxy(localProxyUrl, true);
+          localProxyUrl = null;
+        } catch (e) {}
+      }
     };
 
     try {
@@ -569,6 +583,7 @@ router.post('/api/parse-prices', async (req, res) => {
       if (driver) {
         try { await driver.quit(); } catch (e) { console.error('Driver quit error:', e); }
       }
+      await closeLocalProxy();
     }
   } catch (error) {
     const isModuleNotFound = error.code === 'MODULE_NOT_FOUND' ||

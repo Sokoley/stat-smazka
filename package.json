@@ -18,6 +18,7 @@
     "express-session": "^1.17.3",
     "express-validator": "^7.0.1",
     "multer": "^2.0.2",
+    "proxy-chain": "^2.7.1",
     "selenium-webdriver": "^4.40.0"
   },
   "devDependencies": {
