@@ -4165,6 +4165,7 @@ priceHistory: [{
                       </td>
                       <td>
                         {(() => {
+                          const parsedPrice = parsedData?.price;
                           const calculateOzonCardPrice = (priceStr: string): string => {
                             const priceNum = parseFloat(priceStr.replace(/[^\d.,]/g, '').replace(',', '.')) || 0;
                             if (priceNum <= 0) return priceStr;
