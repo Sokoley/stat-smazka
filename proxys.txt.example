@@ -1,0 +1,6 @@
+# Формат: host:port:username:password
+# Один прокси на строку
+# Пример:
+proxy1.example.com:8080:user:pass
+proxy2.example.com:8080:user:pass
+pool.proxys.io:10000:username:password

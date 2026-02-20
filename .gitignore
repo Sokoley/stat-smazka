@@ -29,3 +29,6 @@ data/
 
 # Claude Code
 .claude/
+
+# Proxy credentials
+proxys.txt

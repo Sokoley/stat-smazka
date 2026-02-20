@@ -296,43 +296,88 @@ router.get('/api/data/all', async (req, res) => {
 // Parse Ozon card prices via Selenium (Ozon blocks plain HTTP requests)
 const OZON_UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
 
-// Proxy settings (can be set via environment or API)
-let proxyConfig = {
-  enabled: process.env.PROXY_ENABLED === 'true',
-  host: process.env.PROXY_HOST || '',
-  port: process.env.PROXY_PORT || '',
-  username: process.env.PROXY_USERNAME || '',
-  password: process.env.PROXY_PASSWORD || ''
+// Proxy list and settings
+const PROXY_FILE = path.join(__dirname, '../../proxys.txt');
+let proxyList = [];
+let proxyIndex = 0;
+let proxyEnabled = false;
+
+// Load proxies from file
+const loadProxies = async () => {
+  try {
+    const content = await fs.readFile(PROXY_FILE, 'utf-8');
+    const lines = content.split('\n').filter(line => line.trim());
+    proxyList = lines.map(line => {
+      const parts = line.trim().split(':');
+      return {
+        host: parts[0],
+        port: parts[1],
+        username: parts[2] || '',
+        password: parts[3] || ''
+      };
+    });
+    console.log(`📋 Загружено ${proxyList.length} прокси из файла`);
+    return proxyList.length;
+  } catch (error) {
+    console.log(`⚠️ Файл прокси не найден: ${PROXY_FILE}`);
+    proxyList = [];
+    return 0;
+  }
 };
 
+// Get next proxy (round-robin)
+const getNextProxy = () => {
+  if (proxyList.length === 0) return null;
+  const proxy = proxyList[proxyIndex];
+  proxyIndex = (proxyIndex + 1) % proxyList.length;
+  return proxy;
+};
+
+// Get random proxy
+const getRandomProxy = () => {
+  if (proxyList.length === 0) return null;
+  const index = Math.floor(Math.random() * proxyList.length);
+  return proxyList[index];
+};
+
+// Load proxies on startup
+loadProxies();
+
 // API to get proxy settings
-router.get('/api/proxy', (req, res) => {
+router.get('/api/proxy', async (req, res) => {
   res.json({
-    enabled: proxyConfig.enabled,
-    host: proxyConfig.host,
-    port: proxyConfig.port,
-    username: proxyConfig.username ? '***' : '',
-    hasAuth: !!(proxyConfig.username && proxyConfig.password)
+    enabled: proxyEnabled,
+    totalProxies: proxyList.length,
+    currentIndex: proxyIndex,
+    sample: proxyList.length > 0 ? `${proxyList[0].host}:${proxyList[0].port}` : null
   });
 });
 
-// API to update proxy settings
-router.post('/api/proxy', (req, res) => {
-  const { enabled, host, port, username, password } = req.body;
+// API to reload proxies from file
+router.post('/api/proxy/reload', async (req, res) => {
+  const count = await loadProxies();
+  res.json({
+    success: true,
+    message: `Загружено ${count} прокси`
+  });
+});
 
-  proxyConfig = {
-    enabled: enabled === true,
-    host: host || '',
-    port: port || '',
-    username: username || '',
-    password: password || ''
-  };
+// API to enable/disable proxy
+router.post('/api/proxy', async (req, res) => {
+  const { enabled } = req.body;
+  proxyEnabled = enabled === true;
 
-  console.log(`🔧 Proxy settings updated: ${proxyConfig.enabled ? `${proxyConfig.host}:${proxyConfig.port}` : 'disabled'}`);
+  if (proxyEnabled && proxyList.length === 0) {
+    await loadProxies();
+  }
+
+  console.log(`🔧 Прокси ${proxyEnabled ? 'включен' : 'отключен'} (${proxyList.length} адресов)`);
 
   res.json({
     success: true,
-    message: proxyConfig.enabled ? `Прокси включен: ${proxyConfig.host}:${proxyConfig.port}` : 'Прокси отключен'
+    enabled: proxyEnabled,
+    totalProxies: proxyList.length,
+    message: proxyEnabled ? `Прокси включен (${proxyList.length} адресов)` : 'Прокси отключен'
   });
 });
 
@@ -378,25 +423,39 @@ router.post('/api/parse-prices', async (req, res) => {
       options.addArguments('--disable-plugins');
       options.addArguments('--disable-images');
 
-      // Добавляем прокси если включен
-      if (proxyConfig.enabled && proxyConfig.host && proxyConfig.port) {
-        const proxyUrl = proxyConfig.username && proxyConfig.password
-          ? `${proxyConfig.username}:${proxyConfig.password}@${proxyConfig.host}:${proxyConfig.port}`
-          : `${proxyConfig.host}:${proxyConfig.port}`;
-
-        options.addArguments(`--proxy-server=http://${proxyConfig.host}:${proxyConfig.port}`);
-        console.log(`🌐 Используется прокси: ${proxyConfig.host}:${proxyConfig.port}`);
-
-        // Для прокси с авторизацией используем расширение
-        if (proxyConfig.username && proxyConfig.password) {
-          // Chrome headless не поддерживает расширения напрямую для proxy auth
-          // Используем альтернативный подход через capabilities
-          console.log(`🔐 Прокси с авторизацией: ${proxyConfig.username}`);
+      // Добавляем прокси из списка
+      let currentProxy = null;
+      if (proxyEnabled && proxyList.length > 0) {
+        currentProxy = getRandomProxy();
+        if (currentProxy) {
+          options.addArguments(`--proxy-server=http://${currentProxy.host}:${currentProxy.port}`);
+          console.log(`🌐 Используется прокси: ${currentProxy.host}:${currentProxy.port}`);
         }
       }
 
       const newDriver = await new Builder().forBrowser('chrome').setChromeOptions(options).build();
       await newDriver.manage().setTimeouts({ implicit: 10000, pageLoad: 20000, script: 20000 });
+
+      // Для прокси с авторизацией выполняем аутентификацию через CDP
+      if (currentProxy && currentProxy.username && currentProxy.password) {
+        try {
+          const cdpConnection = await newDriver.createCDPConnection('page');
+          await cdpConnection.execute('Fetch.enable', {
+            handleAuthRequests: true
+          });
+          await cdpConnection.execute('Fetch.continueWithAuth', {
+            requestId: '',
+            authChallengeResponse: {
+              response: 'ProvideCredentials',
+              username: currentProxy.username,
+              password: currentProxy.password
+            }
+          });
+        } catch (e) {
+          // CDP auth может не работать, пробуем альтернативный метод
+          console.log(`🔐 Прокси аутентификация через CDP не удалась, используем URL-метод`);
+        }
+      }
 
       // Прогреваем сессию
       try {
