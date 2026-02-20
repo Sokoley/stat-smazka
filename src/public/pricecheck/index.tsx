@@ -652,8 +652,28 @@ const createBackup = async () => {
   }
 };
 
-// Компонент для отрисовки графиков
-  // Компонент для отрисовки графиков истории
+// Функция для получения последней спарсенной цены
+const getLatestParsedPrice = (
+  parsedPrices: Record<string, Record<string, string>>,
+  article: string
+): { price: string; date: string } | null => {
+  const dates = Object.keys(parsedPrices).sort().reverse();
+  for (const date of dates) {
+    if (parsedPrices[date]?.[article]) {
+      return { price: parsedPrices[date][article], date };
+    }
+  }
+  return null;
+};
+
+// Функция для проверки есть ли спарсенные цены
+const hasParsedPrices = (parsedPrices: Record<string, Record<string, string>>): boolean => {
+  return Object.keys(parsedPrices).some(date =>
+    parsedPrices[date] && Object.keys(parsedPrices[date]).length > 0
+  );
+};
+
+// Компонент для отрисовки графиков истории
 const HistoryChart = ({ priceHistory }: { priceHistory: PriceHistoryItem[] }) => {
   const chartRef1 = useRef<HTMLCanvasElement>(null);
   const chartRef2 = useRef<HTMLCanvasElement>(null);
@@ -1689,10 +1709,28 @@ const fetchOzonPrices = async (offerIds: string[], ozonData: Record<string, Ozon
       const result = await getFilesList();
       if (result.success) {
         setDataFiles(result.files);
-        
+
         if (result.files.length > 0) {
-          const firstFile = result.files[0];
-          await loadSelectedFile(firstFile.name.replace('.json', ''));
+          // Ищем основной файл, если не найден - берём первый
+          const mainFile = result.files.find(f => f.name === `${DEFAULT_DATA_FILENAME}.json`);
+          const fileToLoad = mainFile ? mainFile.name : result.files[0].name;
+          await loadSelectedFile(fileToLoad.replace('.json', ''));
+        } else {
+          // Если файлов нет - пробуем загрузить основной (может быть создан при первом сохранении)
+          try {
+            const mainResult = await loadDataFromServer(DEFAULT_DATA_FILENAME);
+            if (mainResult.success && mainResult.data) {
+              setSelectedFile(DEFAULT_DATA_FILENAME);
+              setState(prev => ({
+                ...prev,
+                competitorSelections: mainResult.data.competitorSelections || {},
+                parsedPrices: mainResult.data.parsedPrices || {},
+                uploadedFiles: mainResult.data.uploadedFiles || {}
+              }));
+            }
+          } catch (e) {
+            console.log('Основной файл данных ещё не создан');
+          }
         }
       }
     } catch (error) {
@@ -2906,10 +2944,10 @@ priceHistory: [{
     });
     
     // Получаем цену по Ozon Card (сначала спарсенную, потом из API)
-    const today = new Date().toISOString().split('T')[0];
-    const parsedPrice = state.parsedPrices[today]?.[item.Артикул];
+    const parsedData = getLatestParsedPrice(state.parsedPrices, item.Артикул);
+    const parsedPrice = parsedData?.price;
     const ozonCardPrice = parsedPrice || ozonItem?.customer_price || 'Нет данных';
-    const priceSource = parsedPrice ? ' (спарсено)' : ozonItem?.customer_price ? ' (API)' : '';
+    const priceSource = parsedPrice ? ` (спарсено ${parsedData?.date})` : ozonItem?.customer_price ? ' (API)' : '';
 
     return {
       'Артикул': item.Артикул,
@@ -3089,13 +3127,11 @@ priceHistory: [{
 
   // Разделяем товары на видимые и скрытые
   const { visibleProducts, hiddenProducts } = useMemo(() => {
-    const today = new Date().toISOString().split('T')[0];
-
     const visible: VmpItem[] = [];
     const hidden: VmpItem[] = [];
 
-    // Проверяем, был ли выполнен парсинг (есть ли спарсенные цены за сегодня)
-    const hasParsedPricesToday = state.parsedPrices[today] && Object.keys(state.parsedPrices[today]).length > 0;
+    // Проверяем, был ли выполнен парсинг (есть ли спарсенные цены)
+    const hasParsedPricesAny = hasParsedPrices(state.parsedPrices);
 
     filteredData.forEach((item: VmpItem) => {
       const ozonItem = state.ozonData[item.Артикул];
@@ -3108,8 +3144,8 @@ priceHistory: [{
       const hasFileLoaded = typeKey && state.uploadedFiles[typeKey];
 
       // Проверяем наличие СПАРСЕННОЙ цены (цена из API не считается)
-      const parsedPrice = state.parsedPrices[today]?.[item.Артикул];
-      const hasParsedPrice = !!parsedPrice;
+      const parsedData = getLatestParsedPrice(state.parsedPrices, item.Артикул);
+      const hasParsedPrice = !!parsedData;
 
       // Проверяем наличие продаж
       const hasSales = salesData && (salesData.qty > 0 || salesData.sum > 0);
@@ -3547,8 +3583,8 @@ priceHistory: [{
               const hasFile = hasTypeFile;
 
               // Проверяем, есть ли конкуренты с предупреждением
-              const today = new Date().toISOString().split('T')[0];
-              const ourParsedPrice = state.parsedPrices[today]?.[item.Артикул];
+              const ourParsedData = getLatestParsedPrice(state.parsedPrices, item.Артикул);
+              const ourParsedPrice = ourParsedData?.price;
               const ourSku = ozonItem?.sku ? String(ozonItem.sku) : null;
               const ourSalesData = ourSku ? state.salesData[ourSku] : null;
               const ourDiscountPercent = state.ozonPrices[item.Артикул]?.discount_percent || 0;
@@ -3624,9 +3660,10 @@ priceHistory: [{
                     </td>
                     <td>
                       {(() => {
-                        // Сначала пробуем взять спарсенную цену
-                        const today = new Date().toISOString().split('T')[0];
-                        const parsedPrice = state.parsedPrices[today]?.[item.Артикул];
+                        // Берём последнюю спарсенную цену
+                        const parsedData = getLatestParsedPrice(state.parsedPrices, item.Артикул);
+                        const parsedPrice = parsedData?.price;
+                        const parsedDate = parsedData?.date;
 
                         // Функция для расчёта цены по Ozon Card = спарсенная цена - 10%
                         const calculateOzonCardPrice = (priceStr: string): string => {
@@ -3637,11 +3674,13 @@ priceHistory: [{
                         };
 
                         if (parsedPrice) {
+                          const today = new Date().toISOString().split('T')[0];
+                          const isToday = parsedDate === today;
                           return (
                             <div className="price-display price-card">
                               {calculateOzonCardPrice(parsedPrice)}
                               <div className="small text-muted">
-                                <i className="bi bi-check-circle"></i> Спарсено
+                                <i className="bi bi-check-circle"></i> {isToday ? 'Спарсено' : parsedDate}
                               </div>
                             </div>
                           );
@@ -3758,8 +3797,8 @@ priceHistory: [{
                       // );
 
                       // Проверяем, нужно ли показывать предупреждение
-                      const today = new Date().toISOString().split('T')[0];
-                      const ourParsedPrice = state.parsedPrices[today]?.[item.Артикул];
+                      const ourParsedData = getLatestParsedPrice(state.parsedPrices, item.Артикул);
+                      const ourParsedPrice = ourParsedData?.price;
                       const ourOzonItem = state.ozonData[item.Артикул];
                       const ourSku = ourOzonItem?.sku ? String(ourOzonItem.sku) : null;
                       const ourSalesData = ourSku ? state.salesData[ourSku] : null;
@@ -3958,8 +3997,8 @@ priceHistory: [{
           </div>
           {/* Средневзвешенная цена - показываем только если все цены спарсены */}
           {(() => {
-            const today = new Date().toISOString().split('T')[0];
-            const ourParsedPrice = state.parsedPrices[today]?.[item.Артикул];
+            const ourParsedData = getLatestParsedPrice(state.parsedPrices, item.Артикул);
+            const ourParsedPrice = ourParsedData?.price;
 
             // Проверяем, спарсены ли цены у ВСЕХ конкурентов
             const allCompetitorsParsed = competitors.length > 0 &&
@@ -4057,11 +4096,10 @@ priceHistory: [{
               <i className="bi bi-eye-slash me-2"></i>
               Скрытые товары ({hiddenProducts.length}) —
               {(() => {
-                const today = new Date().toISOString().split('T')[0];
                 const hasFile = state.selectedType && state.uploadedFiles[state.selectedType];
-                const hasParsed = state.parsedPrices[today] && Object.keys(state.parsedPrices[today]).length > 0;
+                const hasParsedAny = hasParsedPrices(state.parsedPrices);
                 if (!hasFile) return 'файл не загружен';
-                if (!hasParsed) return 'без продаж';
+                if (!hasParsedAny) return 'без продаж';
                 return 'без спарсенной цены, конкурентов или продаж';
               })()}
             </summary>
@@ -4084,22 +4122,21 @@ priceHistory: [{
                   const sku = ozonItem?.sku ? String(ozonItem.sku) : null;
                   const salesData = sku ? state.salesData[sku] : null;
                   const competitors = state.competitorSelections[item.Артикул] || [];
-                  const today = new Date().toISOString().split('T')[0];
-                  const parsedPrice = state.parsedPrices[today]?.[item.Артикул];
+                  const parsedData = getLatestParsedPrice(state.parsedPrices, item.Артикул);
 
                   // Определяем причины скрытия
                   const reasons: string[] = [];
                   const hasFileLoaded = state.selectedType && state.uploadedFiles[state.selectedType];
-                  const hasParsedPricesToday = state.parsedPrices[today] && Object.keys(state.parsedPrices[today]).length > 0;
+                  const hasParsedPricesAny = hasParsedPrices(state.parsedPrices);
 
                   if (!hasFileLoaded) {
                     reasons.push('Файл не загружен');
-                  } else if (!hasParsedPricesToday) {
+                  } else if (!hasParsedPricesAny) {
                     // До парсинга - скрываем только из-за отсутствия продаж
                     if (!salesData || (salesData.qty === 0 && salesData.sum === 0)) reasons.push('Нет продаж');
                   } else {
                     // После парсинга
-                    if (!parsedPrice) {
+                    if (!parsedData) {
                       reasons.push(ozonItem?.customer_price ? 'Цена из API (не спарсена)' : 'Нет цены');
                     }
                     if (!salesData || (salesData.qty === 0 && salesData.sum === 0)) reasons.push('Нет продаж');
