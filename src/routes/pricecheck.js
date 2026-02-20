@@ -297,7 +297,10 @@ router.get('/api/data/all', async (req, res) => {
 const OZON_UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
 
 // Proxy list and settings
-const PROXY_FILE = path.join(__dirname, '../../proxys.txt');
+// В Docker файл монтируется в /app/proxys.txt, локально - в корне проекта
+const PROXY_FILE = process.env.NODE_ENV === 'production'
+  ? '/app/proxys.txt'
+  : path.join(__dirname, '../../proxys.txt');
 let proxyList = [];
 let proxyIndex = 0;
 let proxyEnabled = false;
