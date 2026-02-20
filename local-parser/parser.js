@@ -11,7 +11,7 @@
 
 const SERVER_URL = process.argv[2] || 'https://stat.smazka.ru';
 const POLL_INTERVAL = 5000;
-const PARSE_DELAY = 2000; // Увеличенная задержка
+const PARSE_DELAY = 500; // Задержка 500-800мс
 
 const { Builder, By, until } = require('selenium-webdriver');
 const chrome = require('selenium-webdriver/chrome');
@@ -30,8 +30,7 @@ async function initBrowser() {
   console.log('🚀 Запуск браузера...');
 
   const options = new chrome.Options();
-  // НЕ headless - показываем браузер для обхода детекции
-  // options.addArguments('--headless=new');
+  options.addArguments('--headless=new');
   options.addArguments('--no-sandbox');
   options.addArguments('--disable-dev-shm-usage');
   options.addArguments('--disable-blink-features=AutomationControlled');
@@ -246,8 +245,8 @@ async function main() {
           console.log(`❌ ${sku}: ${result.error}`);
         }
 
-        // Задержка между запросами
-        await delay(PARSE_DELAY + Math.random() * 1000);
+        // Задержка между запросами 500-800мс
+        await delay(PARSE_DELAY + Math.random() * 300);
       }
 
       console.log(`\n📤 Отправка ${results.length} результатов...`);
