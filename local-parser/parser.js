@@ -49,7 +49,8 @@ async function initBrowser() {
     .setChromeOptions(options)
     .build();
 
-  await driver.manage().setTimeouts({ implicit: 10000, pageLoad: 30000 });
+  // Короткие таймауты для быстрого парсинга
+  await driver.manage().setTimeouts({ implicit: 1500, pageLoad: 15000 });
 
   // Скрываем webdriver
   await driver.executeScript(`
@@ -87,7 +88,7 @@ async function parseSku(sku) {
     console.log(`   Загрузка: ${url}`);
 
     await driver.get(url);
-    await delay(2000 + Math.random() * 1000);
+    await delay(500 + Math.random() * 300); // 500-800мс
 
     // Проверяем на блокировку
     const pageSource = await driver.getPageSource();
@@ -97,50 +98,39 @@ async function parseSku(sku) {
       return { success: false, error: 'blocked', needRestart: true };
     }
 
-    // Ищем цену с картой Ozon
+    // Быстрый поиск цены - все методы параллельно через JS
     let price = null;
 
-    // Способ 1: ищем через data-widget="webPrice"
     try {
-      const priceWidget = await driver.findElement(By.css('[data-widget="webPrice"]'));
-      const priceText = await priceWidget.getText();
-
-      // Ищем цену с картой (обычно вторая цена или с пометкой "с Ozon Картой")
-      const priceMatch = priceText.match(/(\d[\d\s]*)\s*₽/g);
-      if (priceMatch && priceMatch.length > 0) {
-        // Берём первую найденную цену (обычно это цена с картой)
-        price = priceMatch[0].trim();
-      }
-    } catch (e) {}
-
-    // Способ 2: ищем span с ценой
-    if (!price) {
-      try {
-        const priceElements = await driver.findElements(By.css('span[class*="price"], span[class*="Price"]'));
-        for (const el of priceElements) {
-          const text = await el.getText();
-          if (text.includes('₽')) {
-            price = text.trim();
-            break;
-          }
+      // Выполняем поиск цены через JavaScript - быстрее чем Selenium селекторы
+      price = await driver.executeScript(`
+        // Способ 1: data-widget="webPrice"
+        const priceWidget = document.querySelector('[data-widget="webPrice"]');
+        if (priceWidget) {
+          const text = priceWidget.innerText;
+          const match = text.match(/(\\d[\\d\\s]*)\\s*₽/);
+          if (match) return match[0].trim();
         }
-      } catch (e) {}
-    }
 
-    // Способ 3: ищем в JSON-LD
-    if (!price) {
-      try {
-        const scripts = await driver.findElements(By.css('script[type="application/ld+json"]'));
+        // Способ 2: JSON-LD (быстро, без DOM traversal)
+        const scripts = document.querySelectorAll('script[type="application/ld+json"]');
         for (const script of scripts) {
-          const content = await script.getAttribute('innerHTML');
-          const priceMatch = content.match(/"price"\s*:\s*"?(\d+(?:\.\d+)?)"?/);
-          if (priceMatch) {
-            price = priceMatch[1] + ' ₽';
-            break;
+          const match = script.innerHTML.match(/"price"\\s*:\\s*"?(\\d+(?:\\.\\d+)?)"?/);
+          if (match) return match[1] + ' ₽';
+        }
+
+        // Способ 3: любой span с ценой
+        const spans = document.querySelectorAll('span');
+        for (const span of spans) {
+          const text = span.innerText;
+          if (text && text.includes('₽') && /\\d/.test(text) && text.length < 20) {
+            return text.trim();
           }
         }
-      } catch (e) {}
-    }
+
+        return null;
+      `);
+    } catch (e) {}
 
     if (price) {
       return { success: true, price };
@@ -188,7 +178,7 @@ async function main() {
 ║                                            ║
 ║  Сервер: ${SERVER_URL.padEnd(30)}║
 ║                                            ║
-║  Браузер будет виден (не headless)         ║
+║  Режим: headless (500-800мс)               ║
 ╚════════════════════════════════════════════╝
   `);
 
