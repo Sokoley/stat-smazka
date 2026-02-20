@@ -499,15 +499,22 @@ router.post('/api/parser/results', (req, res) => {
   }
 
   console.log(`📥 Получено ${results.length} результатов от локального парсера`);
+  console.log(`📊 Текущий taskId: ${parserTaskId}, результатов в очереди: ${parserTaskId ? (parserResults[parserTaskId] || []).length : 0}`);
+
+  // Сохраняем результаты даже если taskId изменился
+  const taskId = parserTaskId || 'default';
+  if (!parserResults[taskId]) {
+    parserResults[taskId] = [];
+  }
 
   results.forEach(r => {
-    if (parserTaskId && r.sku) {
-      if (!parserResults[parserTaskId]) {
-        parserResults[parserTaskId] = [];
-      }
-      parserResults[parserTaskId].push(r);
+    if (r.sku) {
+      parserResults[taskId].push(r);
+      console.log(`   ${r.sku}: ${r.success ? r.price : r.error}`);
     }
   });
+
+  console.log(`📊 Всего результатов для ${taskId}: ${parserResults[taskId].length}`);
 
   res.json({ success: true, received: results.length });
 });
@@ -535,11 +542,13 @@ router.post('/api/parse-local', async (req, res) => {
   const uniqueSkus = [...new Set(skus.filter(sku => sku && sku.toString().trim().length > 0))];
 
   // Создаём новое задание
-  parserTaskId = Date.now().toString();
+  const currentTaskId = Date.now().toString();
+  parserTaskId = currentTaskId;
   parserQueue = [...uniqueSkus];
-  parserResults[parserTaskId] = [];
+  parserResults[currentTaskId] = [];
 
-  console.log(`📋 Создано задание ${parserTaskId} для локального парсера: ${uniqueSkus.length} SKU`);
+  console.log(`📋 Создано задание ${currentTaskId} для локального парсера: ${uniqueSkus.length} SKU`);
+  console.log(`📋 Очередь: ${parserQueue.length} SKU`);
 
   // Ожидаем результаты (до 5 минут)
   const startTime = Date.now();
@@ -548,11 +557,18 @@ router.post('/api/parse-local', async (req, res) => {
   const checkResults = () => {
     return new Promise((resolve) => {
       const interval = setInterval(() => {
-        const results = parserResults[parserTaskId] || [];
+        const results = parserResults[currentTaskId] || [];
+        const elapsed = Math.round((Date.now() - startTime) / 1000);
+
+        // Логируем каждые 5 секунд
+        if (elapsed % 5 === 0) {
+          console.log(`⏳ [${elapsed}s] Ожидание: ${results.length}/${uniqueSkus.length} результатов, очередь: ${parserQueue.length}`);
+        }
 
         // Все результаты получены или таймаут
         if (results.length >= uniqueSkus.length || Date.now() - startTime > timeout) {
           clearInterval(interval);
+          console.log(`✅ Завершено: ${results.length}/${uniqueSkus.length} за ${elapsed}s`);
           resolve(results);
         }
       }, 1000);
@@ -563,8 +579,10 @@ router.post('/api/parse-local', async (req, res) => {
   const successful = results.filter(r => r.success).length;
 
   // Очистка
-  delete parserResults[parserTaskId];
-  parserTaskId = null;
+  delete parserResults[currentTaskId];
+  if (parserTaskId === currentTaskId) {
+    parserTaskId = null;
+  }
 
   res.json({
     success: successful > 0,
