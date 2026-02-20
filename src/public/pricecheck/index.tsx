@@ -1179,31 +1179,37 @@ const App = () => {
       let ozonMap: Record<string, OzonItem> = {};
       let ozonPricesMap: Record<string, OzonProductPrice> = {};
 
-      try {
-        console.log('🛒 Загружаем Ozon данные...');
-        ozonMap = await fetchOzonData(offerIds);
-        console.log(`✅ Ozon данных: ${Object.keys(ozonMap).length} товаров`);
-      } catch (ozonError) {
-        console.warn("Ozon API fetch failed", ozonError);
-      }
+      // Запускаем загрузку Ozon данных и продаж ПАРАЛЛЕЛЬНО
+      console.log('🚀 Параллельная загрузка данных...');
 
+      const [ozonResult, salesResult] = await Promise.allSettled([
+        (async () => {
+          console.log('🛒 Загружаем Ozon данные...');
+          const data = await fetchOzonData(offerIds);
+          console.log(`✅ Ozon данных: ${Object.keys(data).length} товаров`);
+          return data;
+        })(),
+        (async () => {
+          console.log('📊 Загружаем данные о продажах за неделю...');
+          const data = await fetchSalesData();
+          console.log(`✅ Данных о продажах: ${Object.keys(data).length} SKU`);
+          return data;
+        })()
+      ]);
+
+      ozonMap = ozonResult.status === 'fulfilled' ? ozonResult.value : {};
+      if (ozonResult.status === 'rejected') console.warn("Ozon API fetch failed", ozonResult.reason);
+
+      let salesDataMap: Record<string, OzonSalesData> = salesResult.status === 'fulfilled' ? salesResult.value : {};
+      if (salesResult.status === 'rejected') console.warn("Sales API fetch failed", salesResult.reason);
+
+      // Соинвест загружаем после Ozon данных (зависит от них)
       try {
         console.log('💰 Загружаем данные о соинвесте...');
-        const offerIds = Array.from(new Set(vmpItems.map(i => i.Артикул).filter(Boolean)));
         ozonPricesMap = await fetchOzonPrices(offerIds, ozonMap);
         console.log(`✅ Данных о соинвесте: ${Object.keys(ozonPricesMap).length} товаров`);
       } catch (pricesError) {
         console.warn("Ozon prices API fetch failed", pricesError);
-      }
-
-      // Загрузка данных о продажах за неделю
-      let salesDataMap: Record<string, OzonSalesData> = {};
-      try {
-        console.log('📊 Загружаем данные о продажах за неделю...');
-        salesDataMap = await fetchSalesData();
-        console.log(`✅ Данных о продажах: ${Object.keys(salesDataMap).length} SKU`);
-      } catch (salesError) {
-        console.warn("Ozon sales API fetch failed", salesError);
       }
 
       // Загрузка названий типов товаров Ozon (type_id - более конкретная категория)
@@ -1386,9 +1392,9 @@ const App = () => {
           console.warn(`❌ Сетевая ошибка для аккаунта ${account.name}:`, e.message);
         }
         
-        await new Promise(r => setTimeout(r, 500));
+        await new Promise(r => setTimeout(r, 100)); // Уменьшено с 500мс
       }
-      
+
       console.log(`✅ Чанк ${chunkIndex + 1} завершен, найдено товаров: ${allProducts.length}`);
     }
     
@@ -1461,9 +1467,9 @@ const App = () => {
             console.warn(`❌ Ошибка получения цен от аккаунта ${account.name}:`, e.message);
           }
           
-          await new Promise(r => setTimeout(r, 1000));
+          await new Promise(r => setTimeout(r, 150)); // Уменьшено с 1000мс
         }
-        
+
         console.log(`✅ Чанк ${chunkIndex + 1} завершен, найдено цен: ${Object.keys(priceResults).length}`);
       }
       
@@ -1650,13 +1656,12 @@ const fetchOzonPrices = async (offerIds: string[], ozonData: Record<string, Ozon
       });
     }
 
-    console.log('📊 Загрузка данных о продажах за неделю:', dates);
+    console.log('📊 Параллельная загрузка продаж за неделю');
 
-    for (const dateParams of dates) {
-      for (const account of OZON_ACCOUNTS) {
+    // Создаём все запросы для всех дат и аккаунтов
+    const fetchPromises = dates.flatMap(dateParams =>
+      OZON_ACCOUNTS.map(async account => {
         try {
-          console.log(`📅 Запрос продаж за ${dateParams.day}.${dateParams.month}.${dateParams.year} от ${account.name}`);
-
           const response = await fetch("https://api-seller.ozon.ru/v1/finance/realization/by-day", {
             method: 'POST',
             headers: {
@@ -1669,38 +1674,38 @@ const fetchOzonPrices = async (offerIds: string[], ozonData: Record<string, Ozon
 
           if (response.ok) {
             const data = await response.json();
-
-            if (data.rows && Array.isArray(data.rows)) {
-              data.rows.forEach((row: any) => {
-                const sku = row.item?.sku ? String(row.item.sku) : null;
-                if (sku) {
-                  // Суммируем quantity из delivery_commission
-                  const qty = row.delivery_commission?.quantity || 0;
-                  // seller_price_per_instance - цена за единицу, умножаем на количество
-                  const sum = (row.seller_price_per_instance || 0) * qty;
-
-                  if (!results[sku]) {
-                    results[sku] = { qty: 0, sum: 0 };
-                  }
-                  results[sku].qty += qty;
-                  results[sku].sum += sum;
-                }
-              });
-              console.log(`✅ ${account.name}: получено ${data.rows.length} записей за ${dateParams.day}.${dateParams.month}`);
-            }
-          } else {
-            console.warn(`⚠️ Ошибка API для ${account.name}: ${response.status}`);
+            return { success: true, data, account: account.name, date: dateParams };
           }
+          return { success: false, account: account.name, date: dateParams };
         } catch (e: any) {
-          console.warn(`❌ Ошибка загрузки продаж от ${account.name}:`, e.message);
+          return { success: false, account: account.name, date: dateParams, error: e.message };
         }
+      })
+    );
 
-        // Задержка между запросами
-        await new Promise(r => setTimeout(r, 300));
+    // Выполняем все запросы параллельно (с ограничением через Promise.allSettled)
+    const responses = await Promise.allSettled(fetchPromises);
+
+    // Обрабатываем результаты
+    responses.forEach(result => {
+      if (result.status === 'fulfilled' && result.value.success && result.value.data?.rows) {
+        result.value.data.rows.forEach((row: any) => {
+          const sku = row.item?.sku ? String(row.item.sku) : null;
+          if (sku) {
+            const qty = row.delivery_commission?.quantity || 0;
+            const sum = (row.seller_price_per_instance || 0) * qty;
+
+            if (!results[sku]) {
+              results[sku] = { qty: 0, sum: 0 };
+            }
+            results[sku].qty += qty;
+            results[sku].sum += sum;
+          }
+        });
       }
-    }
+    });
 
-    console.log(`🎉 Итог: загружены данные о продажах для ${Object.keys(results).length} SKU`);
+    console.log(`🎉 Продажи загружены: ${Object.keys(results).length} SKU`);
     return results;
   };
 
