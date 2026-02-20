@@ -48,11 +48,20 @@ ENV CHROME_BIN=/usr/bin/google-chrome
 ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
 ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/google-chrome
 
+# Install build tools for native modules (better-sqlite3)
+RUN apt-get update && apt-get install -y \
+    python3 \
+    make \
+    g++ \
+    --no-install-recommends \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+
 WORKDIR /app
 
 # Copy package files and install production dependencies
 COPY package*.json ./
-RUN npm ci --only=production --ignore-scripts
+RUN npm ci --only=production
 
 # Copy built CSS and source code
 COPY --from=builder /app/src/public/css/styles.css ./src/public/css/styles.css
