@@ -384,6 +384,92 @@ router.post('/api/proxy', async (req, res) => {
   });
 });
 
+// API to test proxy - check IP through proxy
+router.get('/api/proxy/test', async (req, res) => {
+  if (proxyList.length === 0) {
+    return res.json({ success: false, error: 'Нет прокси в списке' });
+  }
+
+  const proxy = getRandomProxy();
+  if (!proxy) {
+    return res.json({ success: false, error: 'Не удалось получить прокси' });
+  }
+
+  try {
+    const proxyChain = require('proxy-chain');
+    const https = require('https');
+    const http = require('http');
+
+    const proxyUrl = proxy.username && proxy.password
+      ? `http://${proxy.username}:${proxy.password}@${proxy.host}:${proxy.port}`
+      : `http://${proxy.host}:${proxy.port}`;
+
+    const localProxyUrl = await proxyChain.anonymizeProxy(proxyUrl);
+    console.log(`🧪 Тест прокси: ${proxy.host}:${proxy.port} → ${localProxyUrl}`);
+
+    // Parse local proxy URL
+    const proxyParts = new URL(localProxyUrl);
+
+    const options = {
+      hostname: 'api.ipify.org',
+      port: 80,
+      path: '/?format=json',
+      method: 'GET',
+      agent: new http.Agent({
+        host: proxyParts.hostname,
+        port: proxyParts.port
+      })
+    };
+
+    // Use simple HTTP request through proxy
+    const result = await new Promise((resolve, reject) => {
+      const proxyReq = http.request({
+        host: proxyParts.hostname,
+        port: proxyParts.port,
+        method: 'CONNECT',
+        path: 'api.ipify.org:80'
+      });
+
+      proxyReq.on('error', reject);
+      proxyReq.on('connect', (res, socket) => {
+        const req = http.request({
+          hostname: 'api.ipify.org',
+          path: '/?format=json',
+          method: 'GET',
+          createConnection: () => socket
+        }, (response) => {
+          let data = '';
+          response.on('data', chunk => data += chunk);
+          response.on('end', () => resolve(data));
+        });
+        req.on('error', reject);
+        req.end();
+      });
+
+      proxyReq.end();
+    });
+
+    await proxyChain.closeAnonymizedProxy(localProxyUrl, true);
+
+    const ipData = JSON.parse(result);
+    console.log(`✅ Тест прокси успешен. IP: ${ipData.ip}`);
+
+    res.json({
+      success: true,
+      proxy: `${proxy.host}:${proxy.port}`,
+      ip: ipData.ip,
+      message: `Прокси работает. Внешний IP: ${ipData.ip}`
+    });
+  } catch (error) {
+    console.error(`❌ Ошибка теста прокси: ${error.message}`);
+    res.json({
+      success: false,
+      proxy: `${proxy.host}:${proxy.port}`,
+      error: error.message
+    });
+  }
+});
+
 router.post('/api/parse-prices', async (req, res) => {
   const { skus } = req.body;
 
