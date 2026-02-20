@@ -470,6 +470,117 @@ router.get('/api/proxy/test', async (req, res) => {
   }
 });
 
+// ============ LOCAL PARSER API ============
+// Очередь заданий для локального парсера
+let parserQueue = [];
+let parserResults = {};
+let parserTaskId = null;
+
+// API: получить задание для локального парсера
+router.get('/api/parser/task', (req, res) => {
+  if (parserQueue.length > 0) {
+    const task = {
+      id: parserTaskId,
+      skus: parserQueue.splice(0, 10) // Отдаём по 10 SKU за раз
+    };
+    console.log(`📤 Отправлено задание локальному парсеру: ${task.skus.length} SKU`);
+    res.json(task);
+  } else {
+    res.json({ skus: [] });
+  }
+});
+
+// API: получить результаты от локального парсера
+router.post('/api/parser/results', (req, res) => {
+  const { results } = req.body;
+
+  if (!results || !Array.isArray(results)) {
+    return res.status(400).json({ success: false, error: 'Invalid results' });
+  }
+
+  console.log(`📥 Получено ${results.length} результатов от локального парсера`);
+
+  results.forEach(r => {
+    if (parserTaskId && r.sku) {
+      if (!parserResults[parserTaskId]) {
+        parserResults[parserTaskId] = [];
+      }
+      parserResults[parserTaskId].push(r);
+    }
+  });
+
+  res.json({ success: true, received: results.length });
+});
+
+// API: статус локального парсера
+router.get('/api/parser/status', (req, res) => {
+  res.json({
+    queueLength: parserQueue.length,
+    taskId: parserTaskId,
+    resultsCount: parserTaskId ? (parserResults[parserTaskId] || []).length : 0
+  });
+});
+
+// API: добавить задание для локального парсера (вызывается из UI)
+router.post('/api/parse-local', async (req, res) => {
+  const { skus } = req.body;
+
+  if (!skus || !Array.isArray(skus) || skus.length === 0) {
+    return res.status(400).json({
+      success: false,
+      error: 'Не предоставлены SKU или пустой массив'
+    });
+  }
+
+  const uniqueSkus = [...new Set(skus.filter(sku => sku && sku.toString().trim().length > 0))];
+
+  // Создаём новое задание
+  parserTaskId = Date.now().toString();
+  parserQueue = [...uniqueSkus];
+  parserResults[parserTaskId] = [];
+
+  console.log(`📋 Создано задание ${parserTaskId} для локального парсера: ${uniqueSkus.length} SKU`);
+
+  // Ожидаем результаты (до 5 минут)
+  const startTime = Date.now();
+  const timeout = 5 * 60 * 1000;
+
+  const checkResults = () => {
+    return new Promise((resolve) => {
+      const interval = setInterval(() => {
+        const results = parserResults[parserTaskId] || [];
+
+        // Все результаты получены или таймаут
+        if (results.length >= uniqueSkus.length || Date.now() - startTime > timeout) {
+          clearInterval(interval);
+          resolve(results);
+        }
+      }, 1000);
+    });
+  };
+
+  const results = await checkResults();
+  const successful = results.filter(r => r.success).length;
+
+  // Очистка
+  delete parserResults[parserTaskId];
+  parserTaskId = null;
+
+  res.json({
+    success: successful > 0,
+    results,
+    summary: {
+      total: results.length,
+      successful,
+      failed: results.length - successful,
+      expected: uniqueSkus.length
+    },
+    source: 'local_parser',
+    timestamp: new Date().toISOString()
+  });
+});
+// ============ END LOCAL PARSER API ============
+
 router.post('/api/parse-prices', async (req, res) => {
   const { skus } = req.body;
 
