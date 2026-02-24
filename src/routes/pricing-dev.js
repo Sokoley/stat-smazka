@@ -443,7 +443,7 @@ router.post('/api/parse-local', async (req, res) => {
     let browser = null;
     let localProxyUrl = null;
 
-    // Функция создания браузера с резидентским прокси
+    // Функция создания браузера с резидентским прокси и антидетект настройками
     const createBrowser = async () => {
       const proxyChain = require('proxy-chain');
 
@@ -455,18 +455,20 @@ router.post('/api/parse-local', async (req, res) => {
         '--no-sandbox',
         '--disable-setuid-sandbox',
         '--disable-dev-shm-usage',
-        '--disable-accelerated-2d-canvas',
-        '--disable-gpu',
+        '--disable-blink-features=AutomationControlled',
+        '--disable-infobars',
         '--window-size=1920,1080',
-        '--disable-web-security',
-        '--disable-features=IsolateOrigins,site-per-process',
-        `--proxy-server=${localProxyUrl}`
+        '--start-maximized',
+        `--proxy-server=${localProxyUrl}`,
+        '--lang=ru-RU',
+        '--disable-features=IsolateOrigins,site-per-process'
       ];
 
       const newBrowser = await puppeteer.launch({
         headless: 'new',
         args,
-        executablePath: process.env.CHROME_BIN || '/usr/bin/google-chrome'
+        executablePath: process.env.CHROME_BIN || '/usr/bin/google-chrome',
+        ignoreDefaultArgs: ['--enable-automation']
       });
 
       return newBrowser;
@@ -489,17 +491,42 @@ router.post('/api/parse-local', async (req, res) => {
       browser = await createBrowser();
       let page = await browser.newPage();
 
-      await page.setUserAgent(OZON_UA);
-      await page.setViewport({ width: 1920, height: 1080 });
-      await page.setExtraHTTPHeaders({
-        'Accept-Language': 'ru-RU,ru;q=0.9,en-US;q=0.8,en;q=0.7'
+      // Антидетект: скрываем webdriver
+      await page.evaluateOnNewDocument(() => {
+        Object.defineProperty(navigator, 'webdriver', { get: () => false });
+        Object.defineProperty(navigator, 'plugins', { get: () => [1, 2, 3, 4, 5] });
+        Object.defineProperty(navigator, 'languages', { get: () => ['ru-RU', 'ru', 'en-US', 'en'] });
+        window.chrome = { runtime: {} };
       });
 
-      // Прогрев сессии
+      await page.setUserAgent(OZON_UA);
+      await page.setViewport({ width: 1920, height: 1080, deviceScaleFactor: 1 });
+      await page.setExtraHTTPHeaders({
+        'Accept-Language': 'ru-RU,ru;q=0.9,en-US;q=0.8,en;q=0.7',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+        'Accept-Encoding': 'gzip, deflate, br',
+        'Cache-Control': 'max-age=0',
+        'sec-ch-ua': '"Not_A Brand";v="8", "Chromium";v="120", "Google Chrome";v="120"',
+        'sec-ch-ua-mobile': '?0',
+        'sec-ch-ua-platform': '"macOS"',
+        'Sec-Fetch-Dest': 'document',
+        'Sec-Fetch-Mode': 'navigate',
+        'Sec-Fetch-Site': 'none',
+        'Sec-Fetch-User': '?1',
+        'Upgrade-Insecure-Requests': '1'
+      });
+
+      // Прогрев сессии - имитация реального пользователя
       try {
         console.log(`🔥 [pricing-dev] Прогрев сессии...`);
-        await page.goto('https://www.ozon.ru', { waitUntil: 'domcontentloaded', timeout: 30000 });
-        await delay(2000 + Math.random() * 1000);
+        await page.goto('https://www.ozon.ru', { waitUntil: 'networkidle2', timeout: 45000 });
+        await delay(3000 + Math.random() * 2000);
+
+        // Скроллим страницу как обычный пользователь
+        await page.evaluate(() => {
+          window.scrollBy(0, 300);
+        });
+        await delay(1000 + Math.random() * 1000);
       } catch (e) {
         console.log('[pricing-dev] Прогрев не удался, продолжаем...');
       }
@@ -509,38 +536,28 @@ router.post('/api/parse-local', async (req, res) => {
         console.log(`🔄 [pricing-dev] [${i + 1}/${uniqueSkus.length}] Парсинг SKU: ${sku}`);
 
         try {
-          const apiUrl = `https://www.ozon.ru/api/entrypoint-api.bx/page/json/v2?url=%2Fproduct%2F${sku}`;
+          // Парсим HTML страницу товара вместо API (меньше шансов на блокировку)
+          const productUrl = `https://www.ozon.ru/product/${sku}/`;
 
-          await page.goto(apiUrl, { waitUntil: 'domcontentloaded', timeout: 30000 });
-          await delay(500 + Math.random() * 500);
-
-          let jsonText = await page.evaluate(() => {
-            const pre = document.querySelector('pre');
-            if (pre) return pre.textContent;
-            return document.body.textContent || '';
-          });
+          await page.goto(productUrl, { waitUntil: 'networkidle2', timeout: 45000 });
+          await delay(1500 + Math.random() * 1000);
 
           // Проверяем на блокировку
-          const isBlocked = jsonText && (
-            jsonText.includes('Доступ ограничен') ||
-            jsonText.includes('не бот') ||
-            jsonText.includes('пазл') ||
-            jsonText.includes('Подтвердите')
-          );
+          const pageContent = await page.content();
+          const isBlocked = pageContent.includes('Доступ ограничен') ||
+            pageContent.includes('не бот') ||
+            pageContent.includes('Подтвердите, что вы не робот') ||
+            pageContent.includes('captcha');
 
           if (isBlocked) {
-            console.log(`🤖 [pricing-dev] [${i + 1}/${uniqueSkus.length}] SKU ${sku}: Блокировка! Пауза 5 сек...`);
-            await delay(5000);
-            // Повторная попытка
-            await page.goto(apiUrl, { waitUntil: 'domcontentloaded', timeout: 30000 });
-            await delay(1000);
-            jsonText = await page.evaluate(() => {
-              const pre = document.querySelector('pre');
-              if (pre) return pre.textContent;
-              return document.body.textContent || '';
-            });
+            console.log(`🤖 [pricing-dev] [${i + 1}/${uniqueSkus.length}] SKU ${sku}: Блокировка! Пауза 10 сек...`);
+            await delay(10000);
+            // Перезагружаем страницу
+            await page.reload({ waitUntil: 'networkidle2', timeout: 45000 });
+            await delay(2000);
 
-            if (jsonText && (jsonText.includes('Доступ ограничен') || jsonText.includes('не бот'))) {
+            const retryContent = await page.content();
+            if (retryContent.includes('Доступ ограничен') || retryContent.includes('не бот')) {
               results.push({
                 sku,
                 price: 'Заблокировано',
@@ -551,13 +568,57 @@ router.post('/api/parse-local', async (req, res) => {
             }
           }
 
-          const cardPrice = (jsonText && jsonText.length >= 50) ? extractOzonCardPrice(jsonText) : null;
+          // Извлекаем цену из HTML страницы
+          const priceData = await page.evaluate(() => {
+            // Ищем цену по карте Ozon (обычно в data-widget="webPrice")
+            const priceWidget = document.querySelector('[data-widget="webPrice"]');
+            if (priceWidget) {
+              // Ищем цену с символом рубля
+              const priceElements = priceWidget.querySelectorAll('span');
+              for (const el of priceElements) {
+                const text = el.textContent || '';
+                if (text.includes('₽') && /\d/.test(text)) {
+                  // Проверяем что это цена по карте (обычно меньше)
+                  const priceMatch = text.match(/[\d\s]+₽/);
+                  if (priceMatch) {
+                    return { cardPrice: priceMatch[0].trim() };
+                  }
+                }
+              }
+            }
+
+            // Альтернативный поиск - JSON-LD данные
+            const scripts = document.querySelectorAll('script[type="application/ld+json"]');
+            for (const script of scripts) {
+              try {
+                const data = JSON.parse(script.textContent || '{}');
+                if (data.offers && data.offers.price) {
+                  return { price: data.offers.price + ' ₽' };
+                }
+              } catch (e) {}
+            }
+
+            // Поиск любой цены на странице
+            const allText = document.body.innerText;
+            const cardPriceMatch = allText.match(/с Ozon Картой[\s\S]*?([\d\s]+\s*₽)/i);
+            if (cardPriceMatch) {
+              return { cardPrice: cardPriceMatch[1].trim() };
+            }
+
+            return null;
+          });
+
+          let cardPrice = null;
+          if (priceData) {
+            cardPrice = priceData.cardPrice || priceData.price;
+          }
+
           results.push({
             sku,
             price: cardPrice || 'Цена не найдена',
             success: !!cardPrice,
-            source: 'residential_proxy',
-            error: cardPrice ? undefined : 'cardPrice not found'
+            source: 'residential_proxy_html',
+            error: cardPrice ? undefined : 'Цена не найдена на странице'
           });
 
           if (cardPrice) {
@@ -572,7 +633,8 @@ router.post('/api/parse-local', async (req, res) => {
         }
 
         if (i < uniqueSkus.length - 1) {
-          await delay(800 + Math.random() * 700);
+          // Более длинные паузы для имитации человека
+          await delay(2000 + Math.random() * 2000);
         }
       }
 
