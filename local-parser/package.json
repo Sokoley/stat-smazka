@@ -7,7 +7,7 @@
     "start": "node parser.js"
   },
   "dependencies": {
-    "selenium-webdriver": "^4.40.0",
-    "chromedriver": "^131.0.0"
+    "chromedriver": "^145.0.6",
+    "selenium-webdriver": "^4.40.0"
   }
 }
