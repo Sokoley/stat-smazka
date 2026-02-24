@@ -302,132 +302,64 @@ router.get('/api/data/all', async (req, res) => {
 // Parse Ozon card prices via Selenium (Ozon blocks plain HTTP requests)
 const OZON_UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
 
+// Резидентский прокси для pricing-dev (всегда включен)
+const RESIDENTIAL_PROXY = {
+  host: '62.112.8.26',
+  port: '11211',
+  username: '01kj7tyx0sc4y63w2dbk82vjw1',
+  password: 'CWtwiJo8VRjrAYMs'
+};
+
 // Proxy list and settings
-// В Docker файл монтируется в /app/proxys.txt, локально - в корне проекта
-const PROXY_FILE = process.env.NODE_ENV === 'production'
-  ? '/app/proxys.txt'
-  : path.join(__dirname, '../../proxys.txt');
-let proxyList = [];
+let proxyList = [RESIDENTIAL_PROXY]; // Резидентский прокси по умолчанию
 let proxyIndex = 0;
-let proxyEnabled = false;
+let proxyEnabled = true; // Всегда включен для pricing-dev
 
-// Load proxies from file
-const loadProxies = async () => {
-  try {
-    const content = await fs.readFile(PROXY_FILE, 'utf-8');
-    const lines = content.split('\n').filter(line => line.trim());
-    proxyList = lines.map(line => {
-      const parts = line.trim().split(':');
-      return {
-        host: parts[0],
-        port: parts[1],
-        username: parts[2] || '',
-        password: parts[3] || ''
-      };
-    });
-    console.log(`📋 [pricing-dev] Загружено ${proxyList.length} прокси из файла`);
-    return proxyList.length;
-  } catch (error) {
-    console.log(`⚠️ [pricing-dev] Файл прокси не найден: ${PROXY_FILE}`);
-    proxyList = [];
-    return 0;
-  }
-};
+// Get proxy (всегда возвращает резидентский прокси)
+const getProxy = () => RESIDENTIAL_PROXY;
 
-// Get next proxy (round-robin)
-const getNextProxy = () => {
-  if (proxyList.length === 0) return null;
-  const proxy = proxyList[proxyIndex];
-  proxyIndex = (proxyIndex + 1) % proxyList.length;
-  return proxy;
-};
-
-// Get random proxy
-const getRandomProxy = () => {
-  if (proxyList.length === 0) return null;
-  const index = Math.floor(Math.random() * proxyList.length);
-  return proxyList[index];
-};
-
-// Load proxies on startup
-loadProxies();
+console.log(`🏠 [pricing-dev] Резидентский прокси: ${RESIDENTIAL_PROXY.host}:${RESIDENTIAL_PROXY.port}`);
 
 // API to get proxy settings
 router.get('/api/proxy', async (req, res) => {
   res.json({
-    enabled: proxyEnabled,
-    totalProxies: proxyList.length,
-    currentIndex: proxyIndex,
-    sample: proxyList.length > 0 ? `${proxyList[0].host}:${proxyList[0].port}` : null
+    enabled: true,
+    type: 'residential',
+    proxy: `${RESIDENTIAL_PROXY.host}:${RESIDENTIAL_PROXY.port}`,
+    message: 'Резидентский прокси всегда включен'
   });
 });
 
-// API to reload proxies from file
+// API to reload proxies (no-op for residential)
 router.post('/api/proxy/reload', async (req, res) => {
-  const count = await loadProxies();
   res.json({
     success: true,
-    message: `Загружено ${count} прокси`
+    message: 'Используется резидентский прокси (перезагрузка не требуется)'
   });
 });
 
-// API to enable/disable proxy
+// API to enable/disable proxy (no-op for residential)
 router.post('/api/proxy', async (req, res) => {
-  const { enabled } = req.body;
-  proxyEnabled = enabled === true;
-
-  if (proxyEnabled && proxyList.length === 0) {
-    await loadProxies();
-  }
-
-  console.log(`🔧 [pricing-dev] Прокси ${proxyEnabled ? 'включен' : 'отключен'} (${proxyList.length} адресов)`);
-
   res.json({
     success: true,
-    enabled: proxyEnabled,
-    totalProxies: proxyList.length,
-    message: proxyEnabled ? `Прокси включен (${proxyList.length} адресов)` : 'Прокси отключен'
+    enabled: true,
+    type: 'residential',
+    message: 'Резидентский прокси всегда включен'
   });
 });
 
-// API to test proxy - check IP through proxy
+// API to test proxy - check IP through residential proxy
 router.get('/api/proxy/test', async (req, res) => {
-  if (proxyList.length === 0) {
-    return res.json({ success: false, error: 'Нет прокси в списке' });
-  }
-
-  const proxy = getRandomProxy();
-  if (!proxy) {
-    return res.json({ success: false, error: 'Не удалось получить прокси' });
-  }
-
   try {
     const proxyChain = require('proxy-chain');
-    const https = require('https');
     const http = require('http');
 
-    const proxyUrl = proxy.username && proxy.password
-      ? `http://${proxy.username}:${proxy.password}@${proxy.host}:${proxy.port}`
-      : `http://${proxy.host}:${proxy.port}`;
-
+    const proxyUrl = `http://${RESIDENTIAL_PROXY.username}:${RESIDENTIAL_PROXY.password}@${RESIDENTIAL_PROXY.host}:${RESIDENTIAL_PROXY.port}`;
     const localProxyUrl = await proxyChain.anonymizeProxy(proxyUrl);
-    console.log(`🧪 [pricing-dev] Тест прокси: ${proxy.host}:${proxy.port} → ${localProxyUrl}`);
+    console.log(`🧪 [pricing-dev] Тест резидентского прокси: ${RESIDENTIAL_PROXY.host}:${RESIDENTIAL_PROXY.port}`);
 
-    // Parse local proxy URL
     const proxyParts = new URL(localProxyUrl);
 
-    const options = {
-      hostname: 'api.ipify.org',
-      port: 80,
-      path: '/?format=json',
-      method: 'GET',
-      agent: new http.Agent({
-        host: proxyParts.hostname,
-        port: proxyParts.port
-      })
-    };
-
-    // Use simple HTTP request through proxy
     const result = await new Promise((resolve, reject) => {
       const proxyReq = http.request({
         host: proxyParts.hostname,
@@ -462,79 +394,32 @@ router.get('/api/proxy/test', async (req, res) => {
 
     res.json({
       success: true,
-      proxy: `${proxy.host}:${proxy.port}`,
+      type: 'residential',
+      proxy: `${RESIDENTIAL_PROXY.host}:${RESIDENTIAL_PROXY.port}`,
       ip: ipData.ip,
-      message: `Прокси работает. Внешний IP: ${ipData.ip}`
+      message: `Резидентский прокси работает. Внешний IP: ${ipData.ip}`
     });
   } catch (error) {
     console.error(`❌ [pricing-dev] Ошибка теста прокси: ${error.message}`);
     res.json({
       success: false,
-      proxy: `${proxy.host}:${proxy.port}`,
+      proxy: `${RESIDENTIAL_PROXY.host}:${RESIDENTIAL_PROXY.port}`,
       error: error.message
     });
   }
 });
 
-// ============ LOCAL PARSER API ============
-// Очередь заданий для локального парсера
-let parserQueue = [];
-let parserResults = {};
-let parserTaskId = null;
-
-// API: получить задание для локального парсера
-router.get('/api/parser/task', (req, res) => {
-  if (parserQueue.length > 0) {
-    const task = {
-      id: parserTaskId,
-      skus: parserQueue.splice(0, 10) // Отдаём по 10 SKU за раз
-    };
-    console.log(`📤 [pricing-dev] Отправлено задание локальному парсеру: ${task.skus.length} SKU`);
-    res.json(task);
-  } else {
-    res.json({ skus: [] });
-  }
-});
-
-// API: получить результаты от локального парсера
-router.post('/api/parser/results', (req, res) => {
-  const { results } = req.body;
-
-  if (!results || !Array.isArray(results)) {
-    return res.status(400).json({ success: false, error: 'Invalid results' });
-  }
-
-  console.log(`📥 [pricing-dev] Получено ${results.length} результатов от локального парсера`);
-  console.log(`📊 [pricing-dev] Текущий taskId: ${parserTaskId}, результатов в очереди: ${parserTaskId ? (parserResults[parserTaskId] || []).length : 0}`);
-
-  // Сохраняем результаты даже если taskId изменился
-  const taskId = parserTaskId || 'default';
-  if (!parserResults[taskId]) {
-    parserResults[taskId] = [];
-  }
-
-  results.forEach(r => {
-    if (r.sku) {
-      parserResults[taskId].push(r);
-      console.log(`   ${r.sku}: ${r.success ? r.price : r.error}`);
-    }
-  });
-
-  console.log(`📊 [pricing-dev] Всего результатов для ${taskId}: ${parserResults[taskId].length}`);
-
-  res.json({ success: true, received: results.length });
-});
-
-// API: статус локального парсера
+// ============ RESIDENTIAL PROXY PARSER API ============
+// API: статус парсера
 router.get('/api/parser/status', (req, res) => {
   res.json({
-    queueLength: parserQueue.length,
-    taskId: parserTaskId,
-    resultsCount: parserTaskId ? (parserResults[parserTaskId] || []).length : 0
+    mode: 'residential_proxy',
+    proxy: `${RESIDENTIAL_PROXY.host}:${RESIDENTIAL_PROXY.port}`,
+    enabled: true
   });
 });
 
-// API: добавить задание для локального парсера (вызывается из UI)
+// API: парсинг через резидентский прокси (вызывается из UI)
 router.post('/api/parse-local', async (req, res) => {
   const { skus } = req.body;
 
@@ -547,63 +432,188 @@ router.post('/api/parse-local', async (req, res) => {
 
   const uniqueSkus = [...new Set(skus.filter(sku => sku && sku.toString().trim().length > 0))];
 
-  // Создаём новое задание
-  const currentTaskId = Date.now().toString();
-  parserTaskId = currentTaskId;
-  parserQueue = [...uniqueSkus];
-  parserResults[currentTaskId] = [];
+  console.log(`🏠 [pricing-dev] Парсинг ${uniqueSkus.length} SKU через резидентский прокси ${RESIDENTIAL_PROXY.host}:${RESIDENTIAL_PROXY.port}`);
 
-  console.log(`📋 [pricing-dev] Создано задание ${currentTaskId} для локального парсера: ${uniqueSkus.length} SKU`);
-  console.log(`📋 [pricing-dev] Очередь: ${parserQueue.length} SKU`);
+  try {
+    const puppeteer = require('puppeteer-extra');
+    const StealthPlugin = require('puppeteer-extra-plugin-stealth');
+    puppeteer.use(StealthPlugin());
 
-  // Ожидаем результаты (до 8 минут - Apache ProxyTimeout = 600)
-  const startTime = Date.now();
-  const timeout = 8 * 60 * 1000;
+    const results = [];
+    let browser = null;
+    let localProxyUrl = null;
 
-  const checkResults = () => {
-    return new Promise((resolve) => {
-      const interval = setInterval(() => {
-        const results = parserResults[currentTaskId] || [];
-        const elapsed = Math.round((Date.now() - startTime) / 1000);
+    // Функция создания браузера с резидентским прокси
+    const createBrowser = async () => {
+      const proxyChain = require('proxy-chain');
 
-        // Логируем каждые 5 секунд
-        if (elapsed % 5 === 0) {
-          console.log(`⏳ [pricing-dev] [${elapsed}s] Ожидание: ${results.length}/${uniqueSkus.length} результатов, очередь: ${parserQueue.length}`);
+      const proxyUrl = `http://${RESIDENTIAL_PROXY.username}:${RESIDENTIAL_PROXY.password}@${RESIDENTIAL_PROXY.host}:${RESIDENTIAL_PROXY.port}`;
+      localProxyUrl = await proxyChain.anonymizeProxy(proxyUrl);
+      console.log(`🌐 [pricing-dev] Резидентский прокси: ${RESIDENTIAL_PROXY.host}:${RESIDENTIAL_PROXY.port}`);
+
+      const args = [
+        '--no-sandbox',
+        '--disable-setuid-sandbox',
+        '--disable-dev-shm-usage',
+        '--disable-accelerated-2d-canvas',
+        '--disable-gpu',
+        '--window-size=1920,1080',
+        '--disable-web-security',
+        '--disable-features=IsolateOrigins,site-per-process',
+        `--proxy-server=${localProxyUrl}`
+      ];
+
+      const newBrowser = await puppeteer.launch({
+        headless: 'new',
+        args,
+        executablePath: process.env.CHROME_BIN || '/usr/bin/google-chrome'
+      });
+
+      return newBrowser;
+    };
+
+    // Функция закрытия прокси
+    const closeLocalProxy = async () => {
+      if (localProxyUrl) {
+        try {
+          const proxyChain = require('proxy-chain');
+          await proxyChain.closeAnonymizedProxy(localProxyUrl, true);
+          localProxyUrl = null;
+        } catch (e) {}
+      }
+    };
+
+    const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
+
+    try {
+      browser = await createBrowser();
+      let page = await browser.newPage();
+
+      await page.setUserAgent(OZON_UA);
+      await page.setViewport({ width: 1920, height: 1080 });
+      await page.setExtraHTTPHeaders({
+        'Accept-Language': 'ru-RU,ru;q=0.9,en-US;q=0.8,en;q=0.7'
+      });
+
+      // Прогрев сессии
+      try {
+        console.log(`🔥 [pricing-dev] Прогрев сессии...`);
+        await page.goto('https://www.ozon.ru', { waitUntil: 'domcontentloaded', timeout: 30000 });
+        await delay(2000 + Math.random() * 1000);
+      } catch (e) {
+        console.log('[pricing-dev] Прогрев не удался, продолжаем...');
+      }
+
+      for (let i = 0; i < uniqueSkus.length; i++) {
+        const sku = uniqueSkus[i].toString().trim();
+        console.log(`🔄 [pricing-dev] [${i + 1}/${uniqueSkus.length}] Парсинг SKU: ${sku}`);
+
+        try {
+          const apiUrl = `https://www.ozon.ru/api/entrypoint-api.bx/page/json/v2?url=%2Fproduct%2F${sku}`;
+
+          await page.goto(apiUrl, { waitUntil: 'domcontentloaded', timeout: 30000 });
+          await delay(500 + Math.random() * 500);
+
+          let jsonText = await page.evaluate(() => {
+            const pre = document.querySelector('pre');
+            if (pre) return pre.textContent;
+            return document.body.textContent || '';
+          });
+
+          // Проверяем на блокировку
+          const isBlocked = jsonText && (
+            jsonText.includes('Доступ ограничен') ||
+            jsonText.includes('не бот') ||
+            jsonText.includes('пазл') ||
+            jsonText.includes('Подтвердите')
+          );
+
+          if (isBlocked) {
+            console.log(`🤖 [pricing-dev] [${i + 1}/${uniqueSkus.length}] SKU ${sku}: Блокировка! Пауза 5 сек...`);
+            await delay(5000);
+            // Повторная попытка
+            await page.goto(apiUrl, { waitUntil: 'domcontentloaded', timeout: 30000 });
+            await delay(1000);
+            jsonText = await page.evaluate(() => {
+              const pre = document.querySelector('pre');
+              if (pre) return pre.textContent;
+              return document.body.textContent || '';
+            });
+
+            if (jsonText && (jsonText.includes('Доступ ограничен') || jsonText.includes('не бот'))) {
+              results.push({
+                sku,
+                price: 'Заблокировано',
+                success: false,
+                error: 'Ozon заблокировал запрос'
+              });
+              continue;
+            }
+          }
+
+          const cardPrice = (jsonText && jsonText.length >= 50) ? extractOzonCardPrice(jsonText) : null;
+          results.push({
+            sku,
+            price: cardPrice || 'Цена не найдена',
+            success: !!cardPrice,
+            source: 'residential_proxy',
+            error: cardPrice ? undefined : 'cardPrice not found'
+          });
+
+          if (cardPrice) {
+            console.log(`✅ [pricing-dev] [${i + 1}/${uniqueSkus.length}] SKU ${sku}: ${cardPrice}`);
+          } else {
+            console.log(`❌ [pricing-dev] [${i + 1}/${uniqueSkus.length}] SKU ${sku}: Цена не найдена`);
+          }
+
+        } catch (error) {
+          console.log(`💥 [pricing-dev] [${i + 1}/${uniqueSkus.length}] SKU ${sku}: Ошибка - ${error.message}`);
+          results.push({ sku, price: 'Ошибка загрузки', success: false, error: error.message });
         }
 
-        // Все результаты получены или таймаут
-        if (results.length >= uniqueSkus.length || Date.now() - startTime > timeout) {
-          clearInterval(interval);
-          console.log(`✅ [pricing-dev] Завершено: ${results.length}/${uniqueSkus.length} за ${elapsed}s`);
-          resolve(results);
+        if (i < uniqueSkus.length - 1) {
+          await delay(800 + Math.random() * 700);
         }
-      }, 1000);
+      }
+
+      const successful = results.filter(r => r.success).length;
+      res.json({
+        success: successful > 0,
+        results,
+        summary: {
+          total: results.length,
+          successful,
+          failed: results.length - successful,
+          expected: uniqueSkus.length
+        },
+        source: 'residential_proxy',
+        proxy: `${RESIDENTIAL_PROXY.host}:${RESIDENTIAL_PROXY.port}`,
+        timestamp: new Date().toISOString()
+      });
+    } finally {
+      if (browser) {
+        try { await browser.close(); } catch (e) {}
+      }
+      await closeLocalProxy();
+    }
+  } catch (error) {
+    const isModuleNotFound = error.code === 'MODULE_NOT_FOUND' ||
+      (error.message && error.message.includes('Cannot find module'));
+    if (isModuleNotFound) {
+      return res.status(503).json({
+        success: false,
+        error: 'Puppeteer не установлен',
+        hint: 'npm install puppeteer puppeteer-extra puppeteer-extra-plugin-stealth proxy-chain'
+      });
+    }
+    console.error('[pricing-dev] Ошибка парсинга:', error);
+    res.status(503).json({
+      success: false,
+      error: error.message || String(error)
     });
-  };
-
-  const results = await checkResults();
-  const successful = results.filter(r => r.success).length;
-
-  // Очистка
-  delete parserResults[currentTaskId];
-  if (parserTaskId === currentTaskId) {
-    parserTaskId = null;
   }
-
-  res.json({
-    success: successful > 0,
-    results,
-    summary: {
-      total: results.length,
-      successful,
-      failed: results.length - successful,
-      expected: uniqueSkus.length
-    },
-    source: 'local_parser',
-    timestamp: new Date().toISOString()
-  });
 });
-// ============ END LOCAL PARSER API ============
+// ============ END RESIDENTIAL PROXY PARSER API ============
 
 router.post('/api/parse-prices', async (req, res) => {
   const { skus } = req.body;
@@ -634,8 +644,14 @@ router.post('/api/parse-prices', async (req, res) => {
     let browser = null;
     let localProxyUrl = null;
 
-    // Функция создания браузера
+    // Функция создания браузера с резидентским прокси
     const createBrowser = async () => {
+      const proxyChain = require('proxy-chain');
+
+      const proxyUrl = `http://${RESIDENTIAL_PROXY.username}:${RESIDENTIAL_PROXY.password}@${RESIDENTIAL_PROXY.host}:${RESIDENTIAL_PROXY.port}`;
+      localProxyUrl = await proxyChain.anonymizeProxy(proxyUrl);
+      console.log(`🏠 [pricing-dev] Резидентский прокси: ${RESIDENTIAL_PROXY.host}:${RESIDENTIAL_PROXY.port}`);
+
       const args = [
         '--no-sandbox',
         '--disable-setuid-sandbox',
@@ -644,33 +660,9 @@ router.post('/api/parse-prices', async (req, res) => {
         '--disable-gpu',
         '--window-size=1920,1080',
         '--disable-web-security',
-        '--disable-features=IsolateOrigins,site-per-process'
+        '--disable-features=IsolateOrigins,site-per-process',
+        `--proxy-server=${localProxyUrl}`
       ];
-
-      // Добавляем прокси
-      if (proxyEnabled && proxyList.length > 0) {
-        const currentProxy = getRandomProxy();
-        if (currentProxy) {
-          try {
-            const proxyChain = require('proxy-chain');
-
-            // Закрываем предыдущий локальный прокси
-            if (localProxyUrl) {
-              try { await proxyChain.closeAnonymizedProxy(localProxyUrl, true); } catch (e) {}
-            }
-
-            const proxyUrl = currentProxy.username && currentProxy.password
-              ? `http://${currentProxy.username}:${currentProxy.password}@${currentProxy.host}:${currentProxy.port}`
-              : `http://${currentProxy.host}:${currentProxy.port}`;
-
-            localProxyUrl = await proxyChain.anonymizeProxy(proxyUrl);
-            console.log(`🌐 [pricing-dev] Прокси: ${currentProxy.host}:${currentProxy.port} → ${localProxyUrl}`);
-            args.push(`--proxy-server=${localProxyUrl}`);
-          } catch (e) {
-            console.error(`❌ [pricing-dev] Ошибка настройки прокси: ${e.message}`);
-          }
-        }
-      }
 
       const newBrowser = await puppeteer.launch({
         headless: 'new',
@@ -800,19 +792,19 @@ router.post('/api/parse-prices', async (req, res) => {
           requestCount++;
         }
 
-        // Перезапуск браузера с новым прокси
+        // Превентивный перезапуск браузера (сброс cookies/сессии)
         if (requestCount >= requestsBeforeRestart && i < uniqueSkus.length - 1) {
-          console.log(`🔄 [pricing-dev] Превентивная смена прокси после ${requestCount} запросов...`);
+          console.log(`🔄 [pricing-dev] Перезапуск браузера после ${requestCount} запросов...`);
           await page.close();
           await browser.close();
           await closeLocalProxy();
-          await new Promise(r => setTimeout(r, 1500 + Math.random() * 1500));
+          await new Promise(r => setTimeout(r, 2000 + Math.random() * 2000));
           browser = await createBrowser();
           page = await browser.newPage();
           await page.setUserAgent(OZON_UA);
           await page.setViewport({ width: 1920, height: 1080 });
           requestCount = 0;
-          requestsBeforeRestart = 10 + Math.floor(Math.random() * 6);
+          requestsBeforeRestart = 15 + Math.floor(Math.random() * 10); // Реже перезапускаем с резидентским прокси
         }
 
         if (i < uniqueSkus.length - 1) {
