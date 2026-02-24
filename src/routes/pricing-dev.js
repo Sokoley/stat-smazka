@@ -463,20 +463,20 @@ router.get('/api/proxy/test', async (req, res) => {
   }
 });
 
-// ============ PYTHON PARSER API ============
-const { spawn } = require('child_process');
+// ============ BROWSER PARSER API (Puppeteer + Stealth) ============
+const ozonBrowserParser = require('../parsers/ozonBrowserParser');
 
 // API: статус парсера
 router.get('/api/parser/status', (req, res) => {
   res.json({
-    mode: 'python_parser',
+    mode: 'browser_parser',
     proxy: `${RESIDENTIAL_PROXY.host}:${RESIDENTIAL_PROXY.port}`,
     enabled: true,
-    engine: 'Python + BeautifulSoup'
+    engine: 'Puppeteer + Stealth (микробатчи, длинные паузы)'
   });
 });
 
-// API: парсинг через Python скрипт (вызывается из UI)
+// API: парсинг через браузер (Puppeteer + Stealth), вызывается из UI
 router.post('/api/parse-local', async (req, res) => {
   const { skus } = req.body;
 
@@ -489,98 +489,45 @@ router.post('/api/parse-local', async (req, res) => {
 
   const uniqueSkus = [...new Set(skus.filter(sku => sku && sku.toString().trim().length > 0))];
 
-  console.log(`🐍 [pricing-dev] Парсинг ${uniqueSkus.length} SKU через Python парсер`);
+  console.log(`🌐 [pricing-dev] Парсинг ${uniqueSkus.length} SKU через Browser Parser (Puppeteer + Stealth)`);
   console.log(`🌐 [pricing-dev] Прокси: ${RESIDENTIAL_PROXY.host}:${RESIDENTIAL_PROXY.port}`);
 
   try {
-    const pythonScript = path.join(__dirname, '../parsers/ozon_parser.py');
-    const proxyUrl = `http://${RESIDENTIAL_PROXY.username}:${RESIDENTIAL_PROXY.password}@${RESIDENTIAL_PROXY.host}:${RESIDENTIAL_PROXY.port}`;
-
-    // Запускаем Python скрипт (увеличенные задержки для снижения блокировок Ozon)
-    const pythonProcess = spawn('python3', [
-      pythonScript,
-      '--proxy', proxyUrl,
-      '--rotate-url', RESIDENTIAL_PROXY.refreshUrl,
-      '--delay-min', '5',
-      '--delay-max', '10',
-      '--json-input'
-    ], {
-      cwd: path.join(__dirname, '../parsers')
-    });
-
-    // Отправляем SKU на stdin
-    pythonProcess.stdin.write(JSON.stringify(uniqueSkus));
-    pythonProcess.stdin.end();
-
-    let stdout = '';
-    let stderr = '';
-
-    pythonProcess.stdout.on('data', (data) => {
-      stdout += data.toString();
-    });
-
-    pythonProcess.stderr.on('data', (data) => {
-      const line = data.toString().trim();
-      if (line) {
-        console.log(`🐍 ${line}`);
-      }
-      stderr += data.toString();
-    });
-
-    // Ждём завершения процесса
-    const result = await new Promise((resolve, reject) => {
-      const timeout = setTimeout(() => {
-        pythonProcess.kill();
-        reject(new Error('Python parser timeout (10 minutes)'));
-      }, 10 * 60 * 1000); // 10 минут таймаут
-
-      pythonProcess.on('close', (code) => {
-        clearTimeout(timeout);
-        if (code === 0) {
-          try {
-            const parsed = JSON.parse(stdout);
-            resolve(parsed);
-          } catch (e) {
-            reject(new Error(`Failed to parse Python output: ${e.message}\nOutput: ${stdout}`));
-          }
-        } else {
-          reject(new Error(`Python process exited with code ${code}\nStderr: ${stderr}`));
+    const result = await ozonBrowserParser.parseSkus(uniqueSkus, {
+      proxy: {
+        host: RESIDENTIAL_PROXY.host,
+        port: RESIDENTIAL_PROXY.port,
+        username: RESIDENTIAL_PROXY.username,
+        password: RESIDENTIAL_PROXY.password,
+        refreshUrl: RESIDENTIAL_PROXY.refreshUrl,
+      },
+      delayBetweenRequestsMs: [12000, 20000],
+      batchSize: 3,
+      batchPauseMs: 60000,
+      postBlockPauseMs: 30000,
+      onProgress: (current, total, sku, msg) => {
+        if (typeof msg === 'string' && msg.length < 50) {
+          console.log(`  [${current}/${total}] SKU ${sku}: ${msg}`);
         }
-      });
-
-      pythonProcess.on('error', (err) => {
-        clearTimeout(timeout);
-        reject(err);
-      });
+      },
     });
 
-    // Добавляем информацию о прокси
     result.proxy = `${RESIDENTIAL_PROXY.host}:${RESIDENTIAL_PROXY.port}`;
     result.timestamp = new Date().toISOString();
 
     console.log(`✅ [pricing-dev] Парсинг завершён: ${result.summary?.successful || 0}/${result.summary?.total || 0} успешно`);
 
     res.json(result);
-
   } catch (error) {
-    console.error('[pricing-dev] Ошибка Python парсера:', error.message);
-
-    // Проверяем установлен ли Python
-    if (error.message.includes('ENOENT') || error.message.includes('python')) {
-      return res.status(503).json({
-        success: false,
-        error: 'Python не установлен или не найден',
-        hint: 'Установите Python 3 и зависимости: pip install -r src/parsers/requirements.txt'
-      });
-    }
-
+    console.error('[pricing-dev] Ошибка Browser парсера:', error.message);
     res.status(503).json({
       success: false,
-      error: error.message || String(error)
+      error: error.message || String(error),
+      hint: 'Проверьте логи и доступность Chrome/Puppeteer',
     });
   }
 });
-// ============ END PYTHON PARSER API ============
+// ============ END BROWSER PARSER API ============
 
 router.post('/api/parse-prices', async (req, res) => {
   const { skus } = req.body;
