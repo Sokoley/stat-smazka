@@ -49,8 +49,9 @@ class OzonParser:
         self.session.headers.update(HEADERS)
         self._setup_proxy()
         self.last_rotation = 0
-        self.rotation_cooldown = 60  # seconds
+        self.rotation_cooldown = 45  # seconds (reduced to recover faster from blocks)
         self.consecutive_blocks = 0
+        self.post_rotation_pause = 12  # seconds to wait after rotation before next request
 
     def _setup_proxy(self):
         """Setup proxy for requests session"""
@@ -60,17 +61,24 @@ class OzonParser:
             'https': proxy_url
         }
 
-    def rotate_ip(self, force=False):
-        """Rotate proxy IP"""
+    def rotate_ip(self, force=False, wait_if_cooldown=True):
+        """Rotate proxy IP. If on cooldown and wait_if_cooldown=True, wait then rotate."""
         now = time.time()
-        if not force and (now - self.last_rotation) < self.rotation_cooldown:
-            print(f"[COOLDOWN] IP rotation on cooldown, {int(self.rotation_cooldown - (now - self.last_rotation))}s left", file=sys.stderr)
-            return False
+        elapsed = now - self.last_rotation
+        if not force and elapsed < self.rotation_cooldown:
+            remaining = int(self.rotation_cooldown - elapsed)
+            if wait_if_cooldown and self.consecutive_blocks >= 3:
+                print(f"[COOLDOWN] Waiting {remaining}s before rotation (bad IP)...", file=sys.stderr)
+                time.sleep(remaining)
+                force = True
+            else:
+                print(f"[COOLDOWN] IP rotation on cooldown, {remaining}s left", file=sys.stderr)
+                return False
 
         try:
             response = requests.get(self.proxy_config.get('rotate_url', DEFAULT_PROXY['rotate_url']), timeout=10)
             if response.status_code == 200:
-                self.last_rotation = now
+                self.last_rotation = time.time()
                 self.consecutive_blocks = 0
                 print(f"[ROTATE] IP rotated successfully: {response.text}", file=sys.stderr)
                 return True
@@ -254,17 +262,20 @@ class OzonParser:
                 # Restart session
                 print(f"[BLOCK] SKU {sku}: Blocked (#{self.consecutive_blocks})", file=sys.stderr)
 
-                # Rotate IP after 3 consecutive blocks
+                # Rotate IP after 3 consecutive blocks (wait for cooldown if needed)
                 if self.consecutive_blocks >= 3:
                     print(f"[BLOCK] {self.consecutive_blocks} consecutive blocks, rotating IP...", file=sys.stderr)
-                    self.rotate_ip()
-                    time.sleep(3)
+                    rotated = self.rotate_ip(wait_if_cooldown=True)
+                    if rotated:
+                        time.sleep(self.post_rotation_pause)
+                    else:
+                        time.sleep(5)
 
                 # Create new session
                 self.session = requests.Session()
                 self.session.headers.update(HEADERS)
                 self._setup_proxy()
-                time.sleep(2 + random.random() * 2)
+                time.sleep(3 + random.random() * 3)
 
                 # Retry once
                 response = self.session.get(url, timeout=30)
@@ -340,8 +351,8 @@ def main():
     parser.add_argument('--proxy', help='Proxy URL (http://user:pass@host:port)')
     parser.add_argument('--rotate-url', help='IP rotation URL')
     parser.add_argument('--json-input', action='store_true', help='Read SKUs from stdin as JSON array')
-    parser.add_argument('--delay-min', type=float, default=2, help='Minimum delay between requests')
-    parser.add_argument('--delay-max', type=float, default=4, help='Maximum delay between requests')
+    parser.add_argument('--delay-min', type=float, default=4, help='Minimum delay between requests')
+    parser.add_argument('--delay-max', type=float, default=8, help='Maximum delay between requests')
 
     args = parser.parse_args()
 

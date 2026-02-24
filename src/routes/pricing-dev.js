@@ -496,11 +496,13 @@ router.post('/api/parse-local', async (req, res) => {
     const pythonScript = path.join(__dirname, '../parsers/ozon_parser.py');
     const proxyUrl = `http://${RESIDENTIAL_PROXY.username}:${RESIDENTIAL_PROXY.password}@${RESIDENTIAL_PROXY.host}:${RESIDENTIAL_PROXY.port}`;
 
-    // Запускаем Python скрипт
+    // Запускаем Python скрипт (увеличенные задержки для снижения блокировок Ozon)
     const pythonProcess = spawn('python3', [
       pythonScript,
       '--proxy', proxyUrl,
       '--rotate-url', RESIDENTIAL_PROXY.refreshUrl,
+      '--delay-min', '5',
+      '--delay-max', '10',
       '--json-input'
     ], {
       cwd: path.join(__dirname, '../parsers')
