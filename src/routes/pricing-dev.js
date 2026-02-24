@@ -311,8 +311,21 @@ const RESIDENTIAL_PROXY = {
   refreshUrl: 'https://api.sx.org/proxy/1956b819-1185-11f1-bf50-bc24114c89e8/refresh-ip'
 };
 
-// Функция ротации IP
-const rotateProxyIP = async () => {
+// Кулдаун ротации IP (минимум 60 секунд между ротациями)
+let lastRotationTime = 0;
+const ROTATION_COOLDOWN = 60000; // 60 секунд
+let consecutiveBlocks = 0; // Счётчик блокировок подряд
+
+// Функция ротации IP с кулдауном
+const rotateProxyIP = async (force = false) => {
+  const now = Date.now();
+  const timeSinceLastRotation = now - lastRotationTime;
+
+  if (!force && timeSinceLastRotation < ROTATION_COOLDOWN) {
+    console.log(`⏳ [pricing-dev] Кулдаун ротации: ещё ${Math.ceil((ROTATION_COOLDOWN - timeSinceLastRotation) / 1000)} сек`);
+    return false;
+  }
+
   try {
     const https = require('https');
     const response = await new Promise((resolve, reject) => {
@@ -322,8 +335,19 @@ const rotateProxyIP = async () => {
         res.on('end', () => resolve({ status: res.statusCode, data }));
       }).on('error', reject);
     });
-    console.log(`🔄 [pricing-dev] Ротация IP: ${response.status} - ${response.data}`);
-    return true;
+
+    if (response.status === 200) {
+      lastRotationTime = now;
+      consecutiveBlocks = 0;
+      console.log(`🔄 [pricing-dev] Ротация IP успешна: ${response.data}`);
+      return true;
+    } else if (response.status === 429) {
+      console.log(`⚠️ [pricing-dev] Ротация IP: слишком частые запросы, ждём...`);
+      return false;
+    } else {
+      console.log(`⚠️ [pricing-dev] Ротация IP: ${response.status} - ${response.data}`);
+      return false;
+    }
   } catch (error) {
     console.error(`❌ [pricing-dev] Ошибка ротации IP: ${error.message}`);
     return false;
@@ -546,19 +570,63 @@ router.post('/api/parse-local', async (req, res) => {
         'Upgrade-Insecure-Requests': '1'
       });
 
-      // Прогрев сессии - имитация реального пользователя
-      try {
-        console.log(`🔥 [pricing-dev] Прогрев сессии...`);
-        await page.goto('https://www.ozon.ru', { waitUntil: 'networkidle2', timeout: 45000 });
-        await delay(3000 + Math.random() * 2000);
+      // Проверка прокси и прогрев сессии
+      let proxyWorking = false;
+      let proxyCheckAttempts = 0;
+      const maxProxyAttempts = 3;
 
-        // Скроллим страницу как обычный пользователь
-        await page.evaluate(() => {
-          window.scrollBy(0, 300);
-        });
-        await delay(1000 + Math.random() * 1000);
-      } catch (e) {
-        console.log('[pricing-dev] Прогрев не удался, продолжаем...');
+      while (!proxyWorking && proxyCheckAttempts < maxProxyAttempts) {
+        proxyCheckAttempts++;
+        try {
+          console.log(`🔥 [pricing-dev] Проверка прокси и прогрев сессии (попытка ${proxyCheckAttempts}/${maxProxyAttempts})...`);
+          await page.goto('https://www.ozon.ru', { waitUntil: 'networkidle2', timeout: 45000 });
+          await delay(3000 + Math.random() * 2000);
+
+          // Проверяем что нет блокировки
+          const content = await page.content();
+          if (content.includes('Доступ ограничен') || content.includes('не бот') || content.includes('captcha')) {
+            console.log(`⚠️ [pricing-dev] Прокси заблокирован на Ozon, ротация IP...`);
+            await rotateProxyIP(true); // Принудительная ротация
+            await delay(5000);
+
+            // Перезапускаем браузер
+            await page.close();
+            await browser.close();
+            await closeLocalProxy();
+            await delay(3000);
+
+            browser = await createBrowser();
+            page = await browser.newPage();
+            await page.evaluateOnNewDocument(() => {
+              Object.defineProperty(navigator, 'webdriver', { get: () => false });
+              Object.defineProperty(navigator, 'plugins', { get: () => [1, 2, 3, 4, 5] });
+              Object.defineProperty(navigator, 'languages', { get: () => ['ru-RU', 'ru', 'en-US', 'en'] });
+              window.chrome = { runtime: {} };
+            });
+            await page.setUserAgent(OZON_UA);
+            await page.setViewport({ width: 1920, height: 1080, deviceScaleFactor: 1 });
+            continue;
+          }
+
+          // Скроллим страницу как обычный пользователь
+          await page.evaluate(() => {
+            window.scrollBy(0, 300);
+          });
+          await delay(1000 + Math.random() * 1000);
+
+          proxyWorking = true;
+          console.log(`✅ [pricing-dev] Прокси работает, начинаем парсинг...`);
+        } catch (e) {
+          console.log(`❌ [pricing-dev] Ошибка проверки прокси: ${e.message}`);
+          if (proxyCheckAttempts < maxProxyAttempts) {
+            await rotateProxyIP(true);
+            await delay(5000);
+          }
+        }
+      }
+
+      if (!proxyWorking) {
+        throw new Error('Не удалось найти работающий прокси после ' + maxProxyAttempts + ' попыток');
       }
 
       for (let i = 0; i < uniqueSkus.length; i++) {
@@ -580,17 +648,24 @@ router.post('/api/parse-local', async (req, res) => {
             pageContent.includes('captcha');
 
           if (isBlocked) {
-            console.log(`🤖 [pricing-dev] [${i + 1}/${uniqueSkus.length}] SKU ${sku}: Блокировка! Ротация IP...`);
+            consecutiveBlocks++;
+            console.log(`🤖 [pricing-dev] [${i + 1}/${uniqueSkus.length}] SKU ${sku}: Блокировка #${consecutiveBlocks}`);
 
-            // Ротируем IP
-            await rotateProxyIP();
-            await delay(3000);
-
-            // Перезапускаем браузер с новым IP
+            // Сначала просто перезапускаем браузер (без ротации)
+            console.log(`🔄 [pricing-dev] Перезапуск браузера...`);
             await page.close();
             await browser.close();
             await closeLocalProxy();
-            await delay(2000);
+            await delay(5000 + Math.random() * 3000);
+
+            // Ротация IP только после 3+ блокировок подряд
+            if (consecutiveBlocks >= 3) {
+              console.log(`🔄 [pricing-dev] ${consecutiveBlocks} блокировок подряд, ротация IP...`);
+              const rotated = await rotateProxyIP();
+              if (rotated) {
+                await delay(5000); // Ждём после ротации
+              }
+            }
 
             browser = await createBrowser();
             page = await browser.newPage();
@@ -605,8 +680,16 @@ router.post('/api/parse-local', async (req, res) => {
             await page.setUserAgent(OZON_UA);
             await page.setViewport({ width: 1920, height: 1080, deviceScaleFactor: 1 });
 
-            // Повторная попытка с новым IP
-            console.log(`🔄 [pricing-dev] [${i + 1}/${uniqueSkus.length}] Повторная попытка SKU ${sku} с новым IP...`);
+            // Прогрев после перезапуска
+            try {
+              await page.goto('https://www.ozon.ru', { waitUntil: 'networkidle2', timeout: 30000 });
+              await delay(2000 + Math.random() * 2000);
+              await page.evaluate(() => window.scrollBy(0, 200));
+              await delay(1000);
+            } catch (e) {}
+
+            // Повторная попытка
+            console.log(`🔄 [pricing-dev] [${i + 1}/${uniqueSkus.length}] Повторная попытка SKU ${sku}...`);
             await page.goto(productUrl, { waitUntil: 'networkidle2', timeout: 45000 });
             await delay(2000);
 
@@ -617,10 +700,16 @@ router.post('/api/parse-local', async (req, res) => {
                 sku,
                 price: 'Заблокировано',
                 success: false,
-                error: 'Ozon заблокировал запрос после ротации IP'
+                error: 'Ozon заблокировал запрос'
               });
               continue;
             }
+
+            // Если повторная попытка успешна - сбрасываем счётчик
+            consecutiveBlocks = 0;
+          } else {
+            // Успешная загрузка - сбрасываем счётчик блокировок
+            consecutiveBlocks = 0;
           }
 
           // Извлекаем цену из HTML страницы
