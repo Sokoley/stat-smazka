@@ -463,17 +463,20 @@ router.get('/api/proxy/test', async (req, res) => {
   }
 });
 
-// ============ RESIDENTIAL PROXY PARSER API ============
+// ============ PYTHON PARSER API ============
+const { spawn } = require('child_process');
+
 // API: статус парсера
 router.get('/api/parser/status', (req, res) => {
   res.json({
-    mode: 'residential_proxy',
+    mode: 'python_parser',
     proxy: `${RESIDENTIAL_PROXY.host}:${RESIDENTIAL_PROXY.port}`,
-    enabled: true
+    enabled: true,
+    engine: 'Python + BeautifulSoup'
   });
 });
 
-// API: парсинг через резидентский прокси (вызывается из UI)
+// API: парсинг через Python скрипт (вызывается из UI)
 router.post('/api/parse-local', async (req, res) => {
   const { skus } = req.body;
 
@@ -486,340 +489,96 @@ router.post('/api/parse-local', async (req, res) => {
 
   const uniqueSkus = [...new Set(skus.filter(sku => sku && sku.toString().trim().length > 0))];
 
-  console.log(`🏠 [pricing-dev] Парсинг ${uniqueSkus.length} SKU через резидентский прокси ${RESIDENTIAL_PROXY.host}:${RESIDENTIAL_PROXY.port}`);
+  console.log(`🐍 [pricing-dev] Парсинг ${uniqueSkus.length} SKU через Python парсер`);
+  console.log(`🌐 [pricing-dev] Прокси: ${RESIDENTIAL_PROXY.host}:${RESIDENTIAL_PROXY.port}`);
 
   try {
-    const puppeteer = require('puppeteer-extra');
-    const StealthPlugin = require('puppeteer-extra-plugin-stealth');
-    puppeteer.use(StealthPlugin());
+    const pythonScript = path.join(__dirname, '../parsers/ozon_parser.py');
+    const proxyUrl = `http://${RESIDENTIAL_PROXY.username}:${RESIDENTIAL_PROXY.password}@${RESIDENTIAL_PROXY.host}:${RESIDENTIAL_PROXY.port}`;
 
-    const results = [];
-    let browser = null;
-    let localProxyUrl = null;
+    // Запускаем Python скрипт
+    const pythonProcess = spawn('python3', [
+      pythonScript,
+      '--proxy', proxyUrl,
+      '--rotate-url', RESIDENTIAL_PROXY.refreshUrl,
+      '--json-input'
+    ], {
+      cwd: path.join(__dirname, '../parsers')
+    });
 
-    // Функция создания браузера с резидентским прокси и антидетект настройками
-    const createBrowser = async () => {
-      const proxyChain = require('proxy-chain');
+    // Отправляем SKU на stdin
+    pythonProcess.stdin.write(JSON.stringify(uniqueSkus));
+    pythonProcess.stdin.end();
 
-      const proxyUrl = `http://${RESIDENTIAL_PROXY.username}:${RESIDENTIAL_PROXY.password}@${RESIDENTIAL_PROXY.host}:${RESIDENTIAL_PROXY.port}`;
-      localProxyUrl = await proxyChain.anonymizeProxy(proxyUrl);
-      console.log(`🌐 [pricing-dev] Резидентский прокси: ${RESIDENTIAL_PROXY.host}:${RESIDENTIAL_PROXY.port}`);
+    let stdout = '';
+    let stderr = '';
 
-      const args = [
-        '--no-sandbox',
-        '--disable-setuid-sandbox',
-        '--disable-dev-shm-usage',
-        '--disable-blink-features=AutomationControlled',
-        '--disable-infobars',
-        '--window-size=1920,1080',
-        '--start-maximized',
-        `--proxy-server=${localProxyUrl}`,
-        '--lang=ru-RU',
-        '--disable-features=IsolateOrigins,site-per-process'
-      ];
+    pythonProcess.stdout.on('data', (data) => {
+      stdout += data.toString();
+    });
 
-      const newBrowser = await puppeteer.launch({
-        headless: 'new',
-        args,
-        executablePath: process.env.CHROME_BIN || '/usr/bin/google-chrome',
-        ignoreDefaultArgs: ['--enable-automation']
-      });
-
-      return newBrowser;
-    };
-
-    // Функция закрытия прокси
-    const closeLocalProxy = async () => {
-      if (localProxyUrl) {
-        try {
-          const proxyChain = require('proxy-chain');
-          await proxyChain.closeAnonymizedProxy(localProxyUrl, true);
-          localProxyUrl = null;
-        } catch (e) {}
+    pythonProcess.stderr.on('data', (data) => {
+      const line = data.toString().trim();
+      if (line) {
+        console.log(`🐍 ${line}`);
       }
-    };
+      stderr += data.toString();
+    });
 
-    const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
+    // Ждём завершения процесса
+    const result = await new Promise((resolve, reject) => {
+      const timeout = setTimeout(() => {
+        pythonProcess.kill();
+        reject(new Error('Python parser timeout (10 minutes)'));
+      }, 10 * 60 * 1000); // 10 минут таймаут
 
-    try {
-      browser = await createBrowser();
-      let page = await browser.newPage();
-
-      // Антидетект: скрываем webdriver
-      await page.evaluateOnNewDocument(() => {
-        Object.defineProperty(navigator, 'webdriver', { get: () => false });
-        Object.defineProperty(navigator, 'plugins', { get: () => [1, 2, 3, 4, 5] });
-        Object.defineProperty(navigator, 'languages', { get: () => ['ru-RU', 'ru', 'en-US', 'en'] });
-        window.chrome = { runtime: {} };
-      });
-
-      await page.setUserAgent(OZON_UA);
-      await page.setViewport({ width: 1920, height: 1080, deviceScaleFactor: 1 });
-      await page.setExtraHTTPHeaders({
-        'Accept-Language': 'ru-RU,ru;q=0.9,en-US;q=0.8,en;q=0.7',
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
-        'Accept-Encoding': 'gzip, deflate, br',
-        'Cache-Control': 'max-age=0',
-        'sec-ch-ua': '"Not_A Brand";v="8", "Chromium";v="120", "Google Chrome";v="120"',
-        'sec-ch-ua-mobile': '?0',
-        'sec-ch-ua-platform': '"macOS"',
-        'Sec-Fetch-Dest': 'document',
-        'Sec-Fetch-Mode': 'navigate',
-        'Sec-Fetch-Site': 'none',
-        'Sec-Fetch-User': '?1',
-        'Upgrade-Insecure-Requests': '1'
-      });
-
-      // Проверка прокси и прогрев сессии
-      let proxyWorking = false;
-      let proxyCheckAttempts = 0;
-      const maxProxyAttempts = 3;
-
-      while (!proxyWorking && proxyCheckAttempts < maxProxyAttempts) {
-        proxyCheckAttempts++;
-        try {
-          console.log(`🔥 [pricing-dev] Проверка прокси и прогрев сессии (попытка ${proxyCheckAttempts}/${maxProxyAttempts})...`);
-          await page.goto('https://www.ozon.ru', { waitUntil: 'networkidle2', timeout: 45000 });
-          await delay(3000 + Math.random() * 2000);
-
-          // Проверяем что нет блокировки
-          const content = await page.content();
-          if (content.includes('Доступ ограничен') || content.includes('не бот') || content.includes('captcha')) {
-            console.log(`⚠️ [pricing-dev] Прокси заблокирован на Ozon, ротация IP...`);
-            await rotateProxyIP(true); // Принудительная ротация
-            await delay(5000);
-
-            // Перезапускаем браузер
-            await page.close();
-            await browser.close();
-            await closeLocalProxy();
-            await delay(3000);
-
-            browser = await createBrowser();
-            page = await browser.newPage();
-            await page.evaluateOnNewDocument(() => {
-              Object.defineProperty(navigator, 'webdriver', { get: () => false });
-              Object.defineProperty(navigator, 'plugins', { get: () => [1, 2, 3, 4, 5] });
-              Object.defineProperty(navigator, 'languages', { get: () => ['ru-RU', 'ru', 'en-US', 'en'] });
-              window.chrome = { runtime: {} };
-            });
-            await page.setUserAgent(OZON_UA);
-            await page.setViewport({ width: 1920, height: 1080, deviceScaleFactor: 1 });
-            continue;
+      pythonProcess.on('close', (code) => {
+        clearTimeout(timeout);
+        if (code === 0) {
+          try {
+            const parsed = JSON.parse(stdout);
+            resolve(parsed);
+          } catch (e) {
+            reject(new Error(`Failed to parse Python output: ${e.message}\nOutput: ${stdout}`));
           }
-
-          // Скроллим страницу как обычный пользователь
-          await page.evaluate(() => {
-            window.scrollBy(0, 300);
-          });
-          await delay(1000 + Math.random() * 1000);
-
-          proxyWorking = true;
-          console.log(`✅ [pricing-dev] Прокси работает, начинаем парсинг...`);
-        } catch (e) {
-          console.log(`❌ [pricing-dev] Ошибка проверки прокси: ${e.message}`);
-          if (proxyCheckAttempts < maxProxyAttempts) {
-            await rotateProxyIP(true);
-            await delay(5000);
-          }
+        } else {
+          reject(new Error(`Python process exited with code ${code}\nStderr: ${stderr}`));
         }
-      }
-
-      if (!proxyWorking) {
-        throw new Error('Не удалось найти работающий прокси после ' + maxProxyAttempts + ' попыток');
-      }
-
-      for (let i = 0; i < uniqueSkus.length; i++) {
-        const sku = uniqueSkus[i].toString().trim();
-        console.log(`🔄 [pricing-dev] [${i + 1}/${uniqueSkus.length}] Парсинг SKU: ${sku}`);
-
-        try {
-          // Парсим HTML страницу товара вместо API (меньше шансов на блокировку)
-          const productUrl = `https://www.ozon.ru/product/${sku}/`;
-
-          await page.goto(productUrl, { waitUntil: 'networkidle2', timeout: 45000 });
-          await delay(1500 + Math.random() * 1000);
-
-          // Проверяем на блокировку
-          const pageContent = await page.content();
-          const isBlocked = pageContent.includes('Доступ ограничен') ||
-            pageContent.includes('не бот') ||
-            pageContent.includes('Подтвердите, что вы не робот') ||
-            pageContent.includes('captcha');
-
-          if (isBlocked) {
-            consecutiveBlocks++;
-            console.log(`🤖 [pricing-dev] [${i + 1}/${uniqueSkus.length}] SKU ${sku}: Блокировка #${consecutiveBlocks}`);
-
-            // Сначала просто перезапускаем браузер (без ротации)
-            console.log(`🔄 [pricing-dev] Перезапуск браузера...`);
-            await page.close();
-            await browser.close();
-            await closeLocalProxy();
-            await delay(5000 + Math.random() * 3000);
-
-            // Ротация IP только после 3+ блокировок подряд
-            if (consecutiveBlocks >= 3) {
-              console.log(`🔄 [pricing-dev] ${consecutiveBlocks} блокировок подряд, ротация IP...`);
-              const rotated = await rotateProxyIP();
-              if (rotated) {
-                await delay(5000); // Ждём после ротации
-              }
-            }
-
-            browser = await createBrowser();
-            page = await browser.newPage();
-
-            // Повторяем антидетект настройки
-            await page.evaluateOnNewDocument(() => {
-              Object.defineProperty(navigator, 'webdriver', { get: () => false });
-              Object.defineProperty(navigator, 'plugins', { get: () => [1, 2, 3, 4, 5] });
-              Object.defineProperty(navigator, 'languages', { get: () => ['ru-RU', 'ru', 'en-US', 'en'] });
-              window.chrome = { runtime: {} };
-            });
-            await page.setUserAgent(OZON_UA);
-            await page.setViewport({ width: 1920, height: 1080, deviceScaleFactor: 1 });
-
-            // Прогрев после перезапуска
-            try {
-              await page.goto('https://www.ozon.ru', { waitUntil: 'networkidle2', timeout: 30000 });
-              await delay(2000 + Math.random() * 2000);
-              await page.evaluate(() => window.scrollBy(0, 200));
-              await delay(1000);
-            } catch (e) {}
-
-            // Повторная попытка
-            console.log(`🔄 [pricing-dev] [${i + 1}/${uniqueSkus.length}] Повторная попытка SKU ${sku}...`);
-            await page.goto(productUrl, { waitUntil: 'networkidle2', timeout: 45000 });
-            await delay(2000);
-
-            const retryContent = await page.content();
-            if (retryContent.includes('Доступ ограничен') || retryContent.includes('не бот') || retryContent.includes('captcha')) {
-              console.log(`❌ [pricing-dev] [${i + 1}/${uniqueSkus.length}] SKU ${sku}: Повторная блокировка`);
-              results.push({
-                sku,
-                price: 'Заблокировано',
-                success: false,
-                error: 'Ozon заблокировал запрос'
-              });
-              continue;
-            }
-
-            // Если повторная попытка успешна - сбрасываем счётчик
-            consecutiveBlocks = 0;
-          } else {
-            // Успешная загрузка - сбрасываем счётчик блокировок
-            consecutiveBlocks = 0;
-          }
-
-          // Извлекаем цену из HTML страницы
-          const priceData = await page.evaluate(() => {
-            // Ищем цену по карте Ozon (обычно в data-widget="webPrice")
-            const priceWidget = document.querySelector('[data-widget="webPrice"]');
-            if (priceWidget) {
-              // Ищем цену с символом рубля
-              const priceElements = priceWidget.querySelectorAll('span');
-              for (const el of priceElements) {
-                const text = el.textContent || '';
-                if (text.includes('₽') && /\d/.test(text)) {
-                  // Проверяем что это цена по карте (обычно меньше)
-                  const priceMatch = text.match(/[\d\s]+₽/);
-                  if (priceMatch) {
-                    return { cardPrice: priceMatch[0].trim() };
-                  }
-                }
-              }
-            }
-
-            // Альтернативный поиск - JSON-LD данные
-            const scripts = document.querySelectorAll('script[type="application/ld+json"]');
-            for (const script of scripts) {
-              try {
-                const data = JSON.parse(script.textContent || '{}');
-                if (data.offers && data.offers.price) {
-                  return { price: data.offers.price + ' ₽' };
-                }
-              } catch (e) {}
-            }
-
-            // Поиск любой цены на странице
-            const allText = document.body.innerText;
-            const cardPriceMatch = allText.match(/с Ozon Картой[\s\S]*?([\d\s]+\s*₽)/i);
-            if (cardPriceMatch) {
-              return { cardPrice: cardPriceMatch[1].trim() };
-            }
-
-            return null;
-          });
-
-          let cardPrice = null;
-          if (priceData) {
-            cardPrice = priceData.cardPrice || priceData.price;
-          }
-
-          results.push({
-            sku,
-            price: cardPrice || 'Цена не найдена',
-            success: !!cardPrice,
-            source: 'residential_proxy_html',
-            error: cardPrice ? undefined : 'Цена не найдена на странице'
-          });
-
-          if (cardPrice) {
-            console.log(`✅ [pricing-dev] [${i + 1}/${uniqueSkus.length}] SKU ${sku}: ${cardPrice}`);
-          } else {
-            console.log(`❌ [pricing-dev] [${i + 1}/${uniqueSkus.length}] SKU ${sku}: Цена не найдена`);
-          }
-
-        } catch (error) {
-          console.log(`💥 [pricing-dev] [${i + 1}/${uniqueSkus.length}] SKU ${sku}: Ошибка - ${error.message}`);
-          results.push({ sku, price: 'Ошибка загрузки', success: false, error: error.message });
-        }
-
-        if (i < uniqueSkus.length - 1) {
-          // Более длинные паузы для имитации человека
-          await delay(2000 + Math.random() * 2000);
-        }
-      }
-
-      const successful = results.filter(r => r.success).length;
-      res.json({
-        success: successful > 0,
-        results,
-        summary: {
-          total: results.length,
-          successful,
-          failed: results.length - successful,
-          expected: uniqueSkus.length
-        },
-        source: 'residential_proxy',
-        proxy: `${RESIDENTIAL_PROXY.host}:${RESIDENTIAL_PROXY.port}`,
-        timestamp: new Date().toISOString()
       });
-    } finally {
-      if (browser) {
-        try { await browser.close(); } catch (e) {}
-      }
-      await closeLocalProxy();
-    }
+
+      pythonProcess.on('error', (err) => {
+        clearTimeout(timeout);
+        reject(err);
+      });
+    });
+
+    // Добавляем информацию о прокси
+    result.proxy = `${RESIDENTIAL_PROXY.host}:${RESIDENTIAL_PROXY.port}`;
+    result.timestamp = new Date().toISOString();
+
+    console.log(`✅ [pricing-dev] Парсинг завершён: ${result.summary?.successful || 0}/${result.summary?.total || 0} успешно`);
+
+    res.json(result);
+
   } catch (error) {
-    const isModuleNotFound = error.code === 'MODULE_NOT_FOUND' ||
-      (error.message && error.message.includes('Cannot find module'));
-    if (isModuleNotFound) {
+    console.error('[pricing-dev] Ошибка Python парсера:', error.message);
+
+    // Проверяем установлен ли Python
+    if (error.message.includes('ENOENT') || error.message.includes('python')) {
       return res.status(503).json({
         success: false,
-        error: 'Puppeteer не установлен',
-        hint: 'npm install puppeteer puppeteer-extra puppeteer-extra-plugin-stealth proxy-chain'
+        error: 'Python не установлен или не найден',
+        hint: 'Установите Python 3 и зависимости: pip install -r src/parsers/requirements.txt'
       });
     }
-    console.error('[pricing-dev] Ошибка парсинга:', error);
+
     res.status(503).json({
       success: false,
       error: error.message || String(error)
     });
   }
 });
-// ============ END RESIDENTIAL PROXY PARSER API ============
+// ============ END PYTHON PARSER API ============
 
 router.post('/api/parse-prices', async (req, res) => {
   const { skus } = req.body;

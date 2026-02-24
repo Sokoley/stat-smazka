@@ -48,14 +48,18 @@ ENV CHROME_BIN=/usr/bin/google-chrome
 ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
 ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/google-chrome
 
-# Install build tools for native modules (better-sqlite3)
+# Install build tools for native modules (better-sqlite3) and Python for parser
 RUN apt-get update && apt-get install -y \
     python3 \
+    python3-pip \
     make \
     g++ \
     --no-install-recommends \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
+
+# Install Python dependencies for Ozon parser
+RUN pip3 install --break-system-packages requests beautifulsoup4 lxml
 
 WORKDIR /app
 
