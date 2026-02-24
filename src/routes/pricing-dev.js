@@ -302,12 +302,32 @@ router.get('/api/data/all', async (req, res) => {
 // Parse Ozon card prices via Selenium (Ozon blocks plain HTTP requests)
 const OZON_UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
 
-// Резидентский прокси для pricing-dev (всегда включен)
+// Резидентский прокси с ротацией для pricing-dev (всегда включен)
 const RESIDENTIAL_PROXY = {
-  host: '62.112.8.26',
-  port: '11211',
-  username: '01kj7tyx0sc4y63w2dbk82vjw1',
-  password: 'CWtwiJo8VRjrAYMs'
+  host: '93.190.143.48',
+  port: '443',
+  username: 'lhzoconcwq-res-country-RU-state-536203-city-498817-hold-session-session-699da825d2302',
+  password: 'a5XdSzQrTeDe0nmL',
+  refreshUrl: 'https://api.sx.org/proxy/1956b819-1185-11f1-bf50-bc24114c89e8/refresh-ip'
+};
+
+// Функция ротации IP
+const rotateProxyIP = async () => {
+  try {
+    const https = require('https');
+    const response = await new Promise((resolve, reject) => {
+      https.get(RESIDENTIAL_PROXY.refreshUrl, (res) => {
+        let data = '';
+        res.on('data', chunk => data += chunk);
+        res.on('end', () => resolve({ status: res.statusCode, data }));
+      }).on('error', reject);
+    });
+    console.log(`🔄 [pricing-dev] Ротация IP: ${response.status} - ${response.data}`);
+    return true;
+  } catch (error) {
+    console.error(`❌ [pricing-dev] Ошибка ротации IP: ${error.message}`);
+    return false;
+  }
 };
 
 // Proxy list and settings
@@ -330,11 +350,21 @@ router.get('/api/proxy', async (req, res) => {
   });
 });
 
-// API to reload proxies (no-op for residential)
+// API to rotate IP
 router.post('/api/proxy/reload', async (req, res) => {
+  const success = await rotateProxyIP();
   res.json({
-    success: true,
-    message: 'Используется резидентский прокси (перезагрузка не требуется)'
+    success,
+    message: success ? 'IP успешно ротирован' : 'Ошибка ротации IP'
+  });
+});
+
+// API to rotate IP (alias)
+router.post('/api/proxy/rotate', async (req, res) => {
+  const success = await rotateProxyIP();
+  res.json({
+    success,
+    message: success ? 'IP успешно ротирован' : 'Ошибка ротации IP'
   });
 });
 
@@ -550,19 +580,44 @@ router.post('/api/parse-local', async (req, res) => {
             pageContent.includes('captcha');
 
           if (isBlocked) {
-            console.log(`🤖 [pricing-dev] [${i + 1}/${uniqueSkus.length}] SKU ${sku}: Блокировка! Пауза 10 сек...`);
-            await delay(10000);
-            // Перезагружаем страницу
-            await page.reload({ waitUntil: 'networkidle2', timeout: 45000 });
+            console.log(`🤖 [pricing-dev] [${i + 1}/${uniqueSkus.length}] SKU ${sku}: Блокировка! Ротация IP...`);
+
+            // Ротируем IP
+            await rotateProxyIP();
+            await delay(3000);
+
+            // Перезапускаем браузер с новым IP
+            await page.close();
+            await browser.close();
+            await closeLocalProxy();
+            await delay(2000);
+
+            browser = await createBrowser();
+            page = await browser.newPage();
+
+            // Повторяем антидетект настройки
+            await page.evaluateOnNewDocument(() => {
+              Object.defineProperty(navigator, 'webdriver', { get: () => false });
+              Object.defineProperty(navigator, 'plugins', { get: () => [1, 2, 3, 4, 5] });
+              Object.defineProperty(navigator, 'languages', { get: () => ['ru-RU', 'ru', 'en-US', 'en'] });
+              window.chrome = { runtime: {} };
+            });
+            await page.setUserAgent(OZON_UA);
+            await page.setViewport({ width: 1920, height: 1080, deviceScaleFactor: 1 });
+
+            // Повторная попытка с новым IP
+            console.log(`🔄 [pricing-dev] [${i + 1}/${uniqueSkus.length}] Повторная попытка SKU ${sku} с новым IP...`);
+            await page.goto(productUrl, { waitUntil: 'networkidle2', timeout: 45000 });
             await delay(2000);
 
             const retryContent = await page.content();
-            if (retryContent.includes('Доступ ограничен') || retryContent.includes('не бот')) {
+            if (retryContent.includes('Доступ ограничен') || retryContent.includes('не бот') || retryContent.includes('captcha')) {
+              console.log(`❌ [pricing-dev] [${i + 1}/${uniqueSkus.length}] SKU ${sku}: Повторная блокировка`);
               results.push({
                 sku,
                 price: 'Заблокировано',
                 success: false,
-                error: 'Ozon заблокировал запрос'
+                error: 'Ozon заблокировал запрос после ротации IP'
               });
               continue;
             }
