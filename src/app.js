@@ -11,7 +11,6 @@ const ozonRoutes = require('./routes/ozon');
 const promoRoutes = require('./routes/promo');
 const posRoutes = require('./routes/pos');
 const pricecheckRoutes = require('./routes/pricecheck');
-const pricingDevRoutes = require('./routes/pricing-dev');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -54,7 +53,6 @@ app.use((req, res, next) => {
 
 // Pricecheck before static so /pricecheck uses layout+iframe (static would serve public/pricecheck/index.html)
 app.use('/pricecheck', pricecheckRoutes);
-app.use('/pricing-dev', pricingDevRoutes);
 app.use(express.static(path.join(__dirname, 'public')));
 
 // Routes
