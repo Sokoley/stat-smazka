@@ -7,14 +7,28 @@ const cache = new Map();
 const CACHE_TTL = 5 * 60 * 1000;
 
 function getCredentials() {
+  // 1) Try single global marketplace_settings record (legacy / single-account mode)
   const settings = db.prepare('SELECT * FROM marketplace_settings WHERE marketplace = ?').get('ozon');
-  if (!settings || !settings.client_id || !settings.api_key || !settings.is_active) {
-    return null;
+  if (settings && settings.client_id && settings.api_key && settings.is_active) {
+    return {
+      clientId: settings.client_id,
+      apiKey: settings.api_key,
+    };
   }
-  return {
-    clientId: settings.client_id,
-    apiKey: settings.api_key,
-  };
+
+  // 2) Fallback: first active account from ozon_accounts (new multi-account settings UI)
+  const account = db
+    .prepare('SELECT * FROM ozon_accounts WHERE is_active = 1 ORDER BY id LIMIT 1')
+    .get();
+  if (account && account.client_id && account.api_key) {
+    return {
+      clientId: account.client_id,
+      apiKey: account.api_key,
+    };
+  }
+
+  // 3) Nothing configured
+  return null;
 }
 
 // Get all active OZON accounts
