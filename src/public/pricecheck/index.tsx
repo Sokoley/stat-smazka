@@ -12,18 +12,23 @@ declare global {
 }
 
 // Configuration
-const VMP_API_URL = "https://lkk.smazka.ru/apiv1/get/pps?token=gulldl9yR7XKWadO1L64&t=actual&pc=0&cm=8";
+const VMP_API_BASE = "https://lkk.smazka.ru/apiv1/get/pps?token=gulldl9yR7XKWadO1L64&t=actual";
+const VMP_API_URL = `${VMP_API_BASE}&pc=0&cm=8`;
 const VMP_AUTH = null;
-
+function getVmpApiUrl(pc: number): string {
+  return `${VMP_API_BASE}&pc=${pc}&cm=8`;
+}
 const OZON_ACCOUNTS = [
   { name: 'account1', client_id: '106736', api_key: '5cf6e47b-0f73-4b23-b8cd-6a097e7cd60d' },
   { name: 'account2', client_id: '224361', api_key: '7ac7cd44-9acf-47b5-b7ca-30de0a46f5d0' },
   { name: 'account3', client_id: '224458', api_key: '7e634373-5841-4eaf-9cef-b5afebe888ac' }
 ];
 
-// API URLs
-const PARSER_API_URL = '/pricecheck/api';
+// API URLs - use dev API when loaded from pricecheck-dev
+const PARSER_API_URL = (typeof window !== 'undefined' && (window as any).PARSER_API_BASE) || '/pricecheck/api';
 const DEFAULT_DATA_FILENAME = 'price_regulator_data';
+// На DEV странице: сортировка по самым частным категориям OZON (type_id), а не по виду товара (ВидТовара)
+const IS_DEV_PAGE = typeof window !== 'undefined' && window.location.pathname.includes('pricecheck-dev');
 
 // Types
 interface VmpItem {
@@ -131,6 +136,8 @@ interface AppState {
   uploadedFiles: Record<string, any[][]>;
   usingFallback: boolean;
   competitorSelections: Record<string, CompetitorRow[]>;
+  /** Ручная видимость: true = показать, false = скрыть; отсутствие ключа = авто (по конкурентам) */
+  visibilityOverride: Record<string, boolean>;
   activeModalSku: string | null;
   isParsingPrices: boolean;
   parsedPrices: Record<string, Record<string, string>>;
@@ -139,8 +146,10 @@ interface AppState {
   expandedProducts: Record<string, boolean>;
   salesData: Record<string, OzonSalesData>; // Данные о продажах по SKU
   salesLoading: boolean;
-  ozonCategories: Record<number, string>; // ID категории -> Название категории
+  ozonCategories: Record<number, string>; // type_id -> Название типа
   collapsedCategories: Record<string, boolean>; // Свёрнутые подкатегории
+  /** На DEV: выбор источника — null до выбора, 'all' все продукты, 'ozon70' доля >70% на OZON */
+  vmpSourceMode?: 'all' | 'ozon70' | null;
 }
 
 interface DataFileInfo {
@@ -431,7 +440,7 @@ const cleanHeader = (h: any): string => String(h).toLowerCase().replace(/\s+/g, 
 
 // Helper to guess columns from Excel headers
 // Обновленная функция detectColumns - ищем только по точным названиям
-const detectColumns = (data: any[][]): { name: number; brand: number; link: number; qty: number; sum: number } => {
+const detectColumns = (data: any[][]): ColumnMapping => {
   if (!data || data.length === 0) {
     console.error('❌ Нет данных для анализа');
     return { name: -1, brand: -1, link: -1, qty: -1, sum: -1 };
@@ -467,10 +476,10 @@ const detectColumns = (data: any[][]): { name: number; brand: number; link: numb
   }
   
   if (headersRowIndex === -1) {
-    console.error('❌ Не найдена строка с заголовками таблицы');
+    console.error('❌ [detectColumns] Не найдена строка с заголовками таблицы');
     // Пробуем использовать первую строку данных как заголовки
     headers = data[0] || [];
-    console.log('⚠️ Используем первую строку как заголовки:', headers);
+    console.log('⚠️ [detectColumns] Используем первую строку как заголовки:', headers);
   }
   
   const normalizedHeaders = headers.map((h: any) => 
@@ -502,7 +511,7 @@ const detectColumns = (data: any[][]): { name: number; brand: number; link: numb
     brandIdx = findExactColumn(['продавец']);
   }
   const qtyIdx = findExactColumn(['заказано, штуки']);
-  const sumIdx = findExactColumn(['заказано на сумму, ₽']);
+  const sumIdx = findExactColumn(['заказано на сумму, ₽', 'заказано на сумму, руб', 'заказано на сумму']);
 
   console.log('📊 Найденные индексы:', { nameIdx, brandIdx, linkIdx, qtyIdx, sumIdx });
 
@@ -515,13 +524,14 @@ const detectColumns = (data: any[][]): { name: number; brand: number; link: numb
   if (sumIdx === -1) missingColumns.push('Заказано на сумму, ₽');
   
   if (missingColumns.length > 0) {
-    console.error('❌ Не найдены колонки:', missingColumns);
-    console.log('ℹ️ Все заголовки:', normalizedHeaders);
-    // Возвращаем -1 для всех, чтобы показать ошибку
+    console.error('❌ [detectColumns] Не найдены колонки:', missingColumns);
+    console.log('ℹ️ [detectColumns] Все заголовки в файле:', normalizedHeaders);
     return { name: -1, brand: -1, link: -1, qty: -1, sum: -1 };
   }
   
-  console.log('✅ Все колонки найдены!');
+  // С какой строки начинаются данные (следующая после заголовков)
+  const dataStartRowIndex = headersRowIndex >= 0 ? headersRowIndex + 1 : 1;
+  console.log('✅ Все колонки найдены! Данные с строки:', dataStartRowIndex + 1, '(индекс', dataStartRowIndex + ')');
   console.log('📋 Фактические заголовки:', {
     name: headers[nameIdx],
     link: headers[linkIdx],
@@ -535,7 +545,8 @@ const detectColumns = (data: any[][]): { name: number; brand: number; link: numb
     brand: brandIdx, 
     link: linkIdx, 
     qty: qtyIdx, 
-    sum: sumIdx 
+    sum: sumIdx,
+    dataStartRowIndex
   };
 };
 
@@ -546,6 +557,7 @@ const saveDataToServer = async (data: any, filename: string = DEFAULT_DATA_FILEN
       competitorSelections: data.competitorSelections || {},
       uploadedFiles: data.uploadedFiles || {},
       parsedPrices: data.parsedPrices || {},
+      visibilityOverride: data.visibilityOverride || {},
       lastUpdated: new Date().toISOString()
     };
     
@@ -1032,12 +1044,13 @@ const App = () => {
     vmpData: [],
     ozonData: {},
     ozonPrices: {},
-    loading: true,
+    loading: !IS_DEV_PAGE,
     error: null,
     selectedType: null,
     uploadedFiles: {},
     usingFallback: false,
     competitorSelections: {},
+    visibilityOverride: {},
     activeModalSku: null,
     isParsingPrices: false,
     parsedPrices: {},
@@ -1047,7 +1060,8 @@ const App = () => {
     salesData: {},
     salesLoading: false,
     ozonCategories: {},
-    collapsedCategories: {}
+    collapsedCategories: {},
+    vmpSourceMode: IS_DEV_PAGE ? null : 'all'
   });
 
   const [modalImage, setModalImage] = useState<string | null>(null);
@@ -1071,14 +1085,20 @@ const App = () => {
   const [isSaving, setIsSaving] = useState<boolean>(false);
   const [activeHistoryModal, setActiveHistoryModal] = useState<{competitor: CompetitorRow | null, productName: string}>({competitor: null, productName: ''});
 
+  // Ref для доступа к актуальному state в асинхронных колбэках (загрузка файла в группе)
+  const stateRef = useRef<AppState>(state);
   useEffect(() => {
-    fetchData();
+    stateRef.current = state;
+  }, [state]);
+
+  useEffect(() => {
+    if (!IS_DEV_PAGE) {
+      fetchData();
+    }
     loadFilesList();
-    
     const autoSaveInterval = setInterval(() => {
       autoSaveData();
     }, 5 * 60 * 1000);
-    
     return () => {
       clearInterval(autoSaveInterval);
     };
@@ -1095,18 +1115,26 @@ const App = () => {
       
       return () => clearTimeout(saveTimeout);
     }
-  }, [state.competitorSelections, state.uploadedFiles, selectedFile]);
+  }, [state.competitorSelections, state.uploadedFiles, state.visibilityOverride, selectedFile]);
 
-  const fetchData = async () => {
+  const fetchData = async (sourceMode?: 'all' | 'ozon70') => {
+    const mode = sourceMode ?? (IS_DEV_PAGE ? state.vmpSourceMode : 'all');
+    const vmpUrl = mode === 'ozon70' ? getVmpApiUrl(0.7) : getVmpApiUrl(0);
     try {
+      setState(prev => ({
+        ...prev,
+        loading: true,
+        error: null,
+        ...(IS_DEV_PAGE && mode ? { vmpSourceMode: mode } : {})
+      }));
       console.log('🔄 Загрузка данных...');
       let vmpItems: VmpItem[] = [];
       let isFallback = false;
 
       try {
-        console.log('🌐 Запрос к:', VMP_API_URL);
+        console.log('🌐 Запрос к:', vmpUrl);
         
-        const vmpResponse = await fetch(VMP_API_URL, {
+        const vmpResponse = await fetch(vmpUrl, {
           method: 'GET',
           headers: {
             'Accept': 'application/json',
@@ -1171,7 +1199,7 @@ const App = () => {
       });
       
       const sortedTypes = Object.entries(typeCounts).sort((a, b) => b[1] - a[1]);
-      const initialType = sortedTypes.length > 0 ? sortedTypes[0][0] : null;
+      let initialType: string | null = sortedTypes.length > 0 ? sortedTypes[0][0] : null;
       
       console.log('🏷️ Доступные категории:', sortedTypes);
 
@@ -1212,10 +1240,9 @@ const App = () => {
         console.warn("Ozon prices API fetch failed", pricesError);
       }
 
-      // Загрузка названий типов товаров Ozon (type_id - более конкретная категория)
+      // Загрузка названий типов товаров Ozon (type_id — самые частные категории)
       let ozonCategoriesMap: Record<number, string> = {};
       try {
-        // Собираем уникальные type_id из загруженных товаров
         const typeIds = Array.from(new Set(
           Object.values(ozonMap)
             .map(item => item.type_id)
@@ -1227,6 +1254,23 @@ const App = () => {
         }
       } catch (catError) {
         console.warn("Ozon categories fetch failed", catError);
+      }
+
+      // На DEV странице начальный тип берём из категорий Ozon, чтобы фильтр и группы сразу показывали данные
+      if (IS_DEV_PAGE && Object.keys(ozonCategoriesMap).length > 0) {
+        const ozonTypeCounts: Record<string, number> = {};
+        Object.values(ozonMap).forEach(item => {
+          const typeId = item.type_id;
+          if (typeId && ozonCategoriesMap[typeId]) {
+            const name = ozonCategoriesMap[typeId];
+            ozonTypeCounts[name] = (ozonTypeCounts[name] || 0) + 1;
+          }
+        });
+        const sortedOzonTypes = Object.entries(ozonTypeCounts).sort((a, b) => b[1] - a[1]);
+        if (sortedOzonTypes.length > 0) {
+          initialType = sortedOzonTypes[0][0];
+          console.log('🏷️ [DEV] Начальный тип из Ozon:', initialType);
+        }
       }
 
       setState(prev => ({
@@ -1730,7 +1774,8 @@ const fetchOzonPrices = async (offerIds: string[], ozonData: Record<string, Ozon
                 ...prev,
                 competitorSelections: mainResult.data.competitorSelections || {},
                 parsedPrices: mainResult.data.parsedPrices || {},
-                uploadedFiles: mainResult.data.uploadedFiles || {}
+                uploadedFiles: mainResult.data.uploadedFiles || {},
+                visibilityOverride: mainResult.data.visibilityOverride || {}
               }));
             }
           } catch (e) {
@@ -1764,6 +1809,7 @@ const fetchOzonPrices = async (offerIds: string[], ozonData: Record<string, Ozon
           competitorSelections: state.competitorSelections,
           parsedPrices: state.parsedPrices,
           uploadedFiles: state.uploadedFiles,
+          visibilityOverride: state.visibilityOverride,
           lastUpdated: new Date().toISOString()
         };
         
@@ -1783,9 +1829,15 @@ const fetchOzonPrices = async (offerIds: string[], ozonData: Record<string, Ozon
     setParsingProgress({ current: 0, total: 0, status: 'Инициализация...' });
 
     try {
-      // Фильтруем товары по выбранной категории
-      const categoryProducts = state.selectedType
-        ? state.vmpData.filter(item => item.ВидТовара === state.selectedType)
+      // Фильтруем товары по выбранной категории (на DEV — по категории Ozon, иначе по ВидТовара)
+      let categoryProducts = state.selectedType
+        ? (IS_DEV_PAGE
+            ? state.vmpData.filter((item: VmpItem) => {
+                const ozonItem = state.ozonData[item.Артикул];
+                const typeId = ozonItem?.type_id;
+                return typeId && state.ozonCategories[typeId] === state.selectedType && ozonItem && !ozonItem.is_archived;
+              })
+            : state.vmpData.filter(item => item.ВидТовара === state.selectedType))
         : state.vmpData;
 
       // Артикулы товаров выбранной категории
@@ -2071,6 +2123,7 @@ if (todayPriceIndex !== -1) {
           competitorSelections: updatedSelections,
           parsedPrices: updatedParsedPrices,
           uploadedFiles: state.uploadedFiles,
+          visibilityOverride: state.visibilityOverride,
           lastUpdated: now.toISOString()
         }, selectedFile);
         
@@ -2175,9 +2228,10 @@ if (todayPriceIndex !== -1) {
             competitorSelections: updatedSelections,
             parsedPrices: state.parsedPrices,
             uploadedFiles: state.uploadedFiles,
+            visibilityOverride: state.visibilityOverride,
             lastUpdated: new Date().toISOString()
           }, selectedFile);
-          
+
           setState(prev => ({
             ...prev,
             competitorSelections: updatedSelections
@@ -2268,15 +2322,28 @@ if (todayPriceIndex !== -1) {
     const matchedCount = Object.keys(autoMatched).length;
     const totalCompetitors = Object.values(autoMatched).reduce((sum, arr) => sum + arr.length, 0);
 
-    const updatedFiles = {
-      ...state.uploadedFiles,
-      [state.selectedType!]: cleanData
-    };
+    // Сохраняем файл под ключами type_${type_id}, чтобы видимость и проверки находили его по типу товара
+    const typeIdsForCategory: number[] = state.selectedType
+      ? IS_DEV_PAGE
+        ? (() => {
+            const ent = Object.entries(state.ozonCategories).find(([, name]) => name === state.selectedType);
+            return ent ? [Number(ent[0])] : [];
+          })()
+        : [...new Set(
+            state.vmpData
+              .filter(p => p.ВидТовара === state.selectedType)
+              .map(p => state.ozonData[p.Артикул]?.type_id)
+              .filter((id): id is number => id != null)
+          )]
+      : [];
+    const updatedFiles = { ...state.uploadedFiles };
+    typeIdsForCategory.forEach(id => { updatedFiles[`type_${id}`] = cleanData; });
 
     saveDataToServer({
       competitorSelections: updatedSelections,
       parsedPrices: state.parsedPrices,
       uploadedFiles: updatedFiles,
+      visibilityOverride: state.visibilityOverride,
       lastUpdated: new Date().toISOString()
     }, selectedFile).then(() => {
       setState(prev => ({
@@ -2306,11 +2373,10 @@ if (todayPriceIndex !== -1) {
     setSelectedBrandFilter(null);
   };
 
-  // В функции handleSaveCompetitors исправьте получение значений:
-const handleSaveCompetitors = async () => {
-  if (!state.activeModalSku || !state.selectedType) return;
+  const handleSaveCompetitors = async () => {
+  if (!state.activeModalSku || !activeTypeKey) return;
   
-  const excelData = state.uploadedFiles[state.selectedType];
+  const excelData = state.uploadedFiles[activeTypeKey];
   if (!excelData || excelData.length < 2) return;
 
   const headers = excelData[0];
@@ -2399,9 +2465,10 @@ priceHistory: [{
       competitorSelections: updatedSelections,
       parsedPrices: state.parsedPrices,
       uploadedFiles: state.uploadedFiles,
+      visibilityOverride: state.visibilityOverride,
       lastUpdated: new Date().toISOString()
     }, selectedFile);
-    
+
     console.log('✅ Данные сохранены на сервер');
     alert(`✅ Сохранено ${selectedRows.length} конкурентов`);
   } catch (error) {
@@ -2516,79 +2583,187 @@ priceHistory: [{
     return { min: volumeInMl * 0.95, max: volumeInMl * 1.05 };
   };
 
+  // Извлечение значимых слов из названия (для сопоставления по похожести)
+  const extractMeaningfulWords = (name: string): Set<string> => {
+    if (!name || typeof name !== 'string') return new Set();
+    const stopWords = new Set(['и', 'в', 'на', 'для', 'с', 'по', 'из', 'до', 'без', 'или', 'от', 'к', 'у', 'о', 'а', 'но', 'как', 'что', 'это']);
+    const words = name.toLowerCase()
+      .replace(/[^\p{L}\p{N}\-]/gu, ' ')
+      .split(/\s+/)
+      .filter(w => w.length >= 2 && !stopWords.has(w) && !/^\d+$/.test(w));
+    return new Set(words);
+  };
+
+  // Совпадение двух слов: полное или по части (общий префикс ≥ 4 символов, либо вхождение)
+  const wordsMatch = (ourWord: string, compWord: string): boolean => {
+    if (ourWord === compWord) return true;
+    const minLen = 4;
+    if (ourWord.length < minLen && compWord.length < minLen) return false;
+    const ow = ourWord.toLowerCase();
+    const cw = compWord.toLowerCase();
+    if (ow.length >= minLen && cw.includes(ow)) return true;
+    if (cw.length >= minLen && ow.includes(cw)) return true;
+    let prefix = 0;
+    while (prefix < ow.length && prefix < cw.length && ow[prefix] === cw[prefix]) prefix++;
+    return prefix >= minLen;
+  };
+
+  // Количество совпадающих слов (полное или частичное) между нашим названием и названием конкурента
+  const getSimilarWordsCount = (ourWords: Set<string>, competitorName: string): number => {
+    const compWordsArr = Array.from(extractMeaningfulWords(competitorName));
+    let count = 0;
+    ourWords.forEach(ourW => {
+      if (compWordsArr.some(cw => wordsMatch(ourW, cw))) count++;
+    });
+    return count;
+  };
+
   // Функция для автоматического подбора конкурентов к нашим товарам
   const autoMatchCompetitors = (
     excelData: any[][],
-    mapping: { name: number; link: number; brand: number; qty: number; sum: number },
+    mapping: { name: number; link: number; brand: number; qty: number; sum: number; dataStartRowIndex?: number },
     ourProducts: VmpItem[]
   ): Record<string, CompetitorRow[]> => {
     const result: Record<string, CompetitorRow[]> = {};
     const excludedBrands = ['ВМПАВТО', 'РМ', 'Смазка.ру'];
+    const dataStart = mapping.dataStartRowIndex ?? 1;
+    const dataRowCount = Math.max(0, (excelData?.length ?? 0) - dataStart);
 
-    // Фильтруем наши товары по текущей категории
-    const filteredOurProducts = state.selectedType
-      ? ourProducts.filter(p => p.ВидТовара === state.selectedType)
-      : ourProducts;
+    console.log('[autoMatch] Вход: excelData строк=', excelData?.length ?? 0, 'данные с строки=', dataStart + 1, 'строк данных=', dataRowCount, 'ourProducts=', ourProducts?.length ?? 0);
+
+    // Когда передан список одной группы (до ~50 товаров), не фильтруем по selectedType — используем как есть
+    const isSingleCategoryList = ourProducts.length > 0 && (
+      IS_DEV_PAGE
+        ? new Set(ourProducts.map(p => state.ozonData[p.Артикул]?.type_id)).size <= 1
+        : new Set(ourProducts.map(p => p.ВидТовара)).size <= 1
+    );
+    const useListAsIs = ourProducts.length > 0 && ourProducts.length <= 50;
+    const filteredOurProducts = useListAsIs
+      ? ourProducts
+      : (state.selectedType && !isSingleCategoryList)
+        ? IS_DEV_PAGE
+          ? ourProducts.filter(p => {
+              const ozonItem = state.ozonData[p.Артикул];
+              const typeId = ozonItem?.type_id;
+              return typeId && state.ozonCategories[typeId] === state.selectedType;
+            })
+          : ourProducts.filter(p => p.ВидТовара === state.selectedType)
+        : ourProducts;
+
+    console.log('[autoMatch] useListAsIs=', useListAsIs, 'filteredOurProducts=', filteredOurProducts.length);
+    if (filteredOurProducts.length === 0) {
+      console.warn('[autoMatch] Нет товаров для подбора — filteredOurProducts пустой.');
+      return result;
+    }
+
+    let noVolumeCount = 0;
+    let withCompetitorsCount = 0;
+    let totalCandidatesInExcel = 0;
 
     // Для каждого нашего товара
-    filteredOurProducts.forEach(ourProduct => {
-      // Извлекаем объём из названия нашего товара
+    filteredOurProducts.forEach((ourProduct, idx) => {
       const ourVolume = extractVolumeInMl(ourProduct.Номенклатура);
+      const ourWords = extractMeaningfulWords(ourProduct.Номенклатура);
+      const competitors: CompetitorRow[] = [];
+      let statsOurBrand = 0;
+      let statsNoVolume = 0;
+      let statsOutOfRange = 0;
+      let statsNoSimilarWords = 0;
 
       if (!ourVolume) {
-        console.log(`⚠️ Не удалось определить объём для: ${ourProduct.Номенклатура}`);
-        return;
+        noVolumeCount++;
+        if (idx < 3) console.log(`[autoMatch] Нет объёма в названии: "${ourProduct.Номенклатура}" → подбор по всем строкам Excel (топ по сумме)`);
       }
 
-      const range = getVolumeRange(ourVolume);
-      const competitors: CompetitorRow[] = [];
-
-      // Проходим по конкурентам в Excel
-      for (let i = 1; i < excelData.length; i++) {
+      // Проходим по конкурентам в Excel (данные с dataStart)
+      for (let i = dataStart; i < excelData.length; i++) {
         const row = excelData[i];
-        const brand = row[mapping.brand] ? String(row[mapping.brand]).trim() : '';
+        if (!row || !Array.isArray(row)) continue;
+        const brand = (row[mapping.brand] != null && row[mapping.brand] !== '')
+          ? String(row[mapping.brand]).trim() : '';
 
-        // Пропускаем наши бренды
         if (excludedBrands.some(b => b.toLowerCase() === brand.toLowerCase())) {
+          statsOurBrand++;
           continue;
         }
 
         const productName = row[mapping.name] ? String(row[mapping.name]) : '';
         const competitorVolume = extractVolumeInMl(productName);
 
-        // Проверяем, попадает ли объём конкурента в диапазон
-        if (competitorVolume && competitorVolume >= range.min && competitorVolume <= range.max) {
-          const link = row[mapping.link] ? String(row[mapping.link]).trim() : '';
-          const sku = extractSkuFromUrl(link);
-
-          competitors.push({
-            name: productName,
-            brand: brand,
-            link: link,
-            qty: row[mapping.qty] || 0,
-            sum: row[mapping.sum] || 0,
-            originalIndex: i,
-            sku: sku || undefined,
-            priceHistory: []
-          });
+        if (ourVolume && competitorVolume != null) {
+          // Оба объёма есть в названиях — фильтруем по ±5%
+          const range = getVolumeRange(ourVolume);
+          if (competitorVolume < range.min || competitorVolume > range.max) {
+            statsOutOfRange++;
+            continue;
+          }
         }
+
+        // Требуем хотя бы 1 общее значимое слово в названии (раскоксовка, масло, очиститель и т.п.)
+        const similarWords = getSimilarWordsCount(ourWords, productName);
+        if (ourWords.size > 0 && similarWords === 0) {
+          statsNoSimilarWords++;
+          continue;
+        }
+
+        const link = row[mapping.link] ? String(row[mapping.link]).trim() : '';
+        const sku = extractSkuFromUrl(link);
+
+        competitors.push({
+          name: productName,
+          brand: brand,
+          link: link,
+          qty: row[mapping.qty] || 0,
+          sum: row[mapping.sum] || 0,
+          originalIndex: i,
+          sku: sku || undefined,
+          priceHistory: []
+        });
       }
 
-      // Сортируем по сумме продаж и ограничиваем до 20 конкурентов
+      if (idx < 2) {
+        const rangeForLog = ourVolume ? getVolumeRange(ourVolume) : null;
+        console.log(`[autoMatch] Товар ${idx + 1}: "${ourProduct.Номенклатура}" ${ourVolume && rangeForLog ? `объём=${ourVolume}мл [${rangeForLog.min}-${rangeForLog.max}]` : 'без объёма (все строки)'}. Excel: наш_бренд=${statsOurBrand}, без_объёма=${statsNoVolume}, вне_диапазона=${statsOutOfRange}, без_похожих_слов=${statsNoSimilarWords} → конкурентов=${competitors.length}`);
+      }
+
+      if (idx === 0 && filteredOurProducts.length > 0) {
+        totalCandidatesInExcel = excelData.length - dataStart;
+        const sampleRow = excelData[dataStart];
+        const sampleName = sampleRow?.[mapping.name] ?? '';
+        const sampleBrand = sampleRow?.[mapping.brand] ?? '';
+        console.log('[autoMatch] Пример строки Excel (строка', dataStart + 1, '): name=', sampleName, 'brand=', sampleBrand, 'объём из названия=', extractVolumeInMl(String(sampleName)));
+      }
+
+      // Сортировка: 1) совпадение по объёму, 2) кол-во общих слов, 3) сумма продаж
+      const volumeMatch = (name: string): boolean => {
+        if (!ourVolume) return true;
+        const v = extractVolumeInMl(name);
+        if (v == null) return false;
+        const range = getVolumeRange(ourVolume);
+        return v >= range.min && v <= range.max;
+      };
       const sortedCompetitors = competitors
         .sort((a, b) => {
+          const volA = volumeMatch(a.name);
+          const volB = volumeMatch(b.name);
+          if (volB !== volA) return volB ? 1 : -1; // с совпадением по объёму — выше
+          const simA = getSimilarWordsCount(ourWords, a.name);
+          const simB = getSimilarWordsCount(ourWords, b.name);
+          if (simB !== simA) return simB - simA;
           const sumA = typeof a.sum === 'number' ? a.sum : parseFloat(String(a.sum || '0').replace(/[^\d.-]/g, '')) || 0;
           const sumB = typeof b.sum === 'number' ? b.sum : parseFloat(String(b.sum || '0').replace(/[^\d.-]/g, '')) || 0;
           return sumB - sumA;
         })
-        .slice(0, 20); // Ограничиваем до 20 конкурентов
+        .slice(0, 10);
 
       if (sortedCompetitors.length > 0) {
+        withCompetitorsCount++;
         result[ourProduct.Артикул] = sortedCompetitors;
-        console.log(`✅ ${ourProduct.Номенклатура} (${ourVolume}мл): найдено ${sortedCompetitors.length} конкурентов (макс. 20)`);
+        if (withCompetitorsCount <= 2) console.log(`[autoMatch] ✅ "${ourProduct.Номенклатура}": найдено ${sortedCompetitors.length} конкурентов`);
       }
     });
 
+    console.log('[autoMatch] Итог: товаров без объёма=', noVolumeCount, 'товаров с конкурентами=', withCompetitorsCount, 'ключей в result=', Object.keys(result).length, 'строк данных в Excel=', totalCandidatesInExcel || Math.max(0, excelData.length - dataStart));
     return result;
   };
 
@@ -3000,7 +3175,8 @@ priceHistory: [{
           ...prev,
           competitorSelections: result.data.competitorSelections || {},
           parsedPrices: result.data.parsedPrices || {},
-          uploadedFiles: result.data.uploadedFiles || {}
+          uploadedFiles: result.data.uploadedFiles || {},
+          visibilityOverride: result.data.visibilityOverride || {}
         }));
       } else {
         alert(`Файл "${filename}" не найден или пуст`);
@@ -3008,6 +3184,21 @@ priceHistory: [{
     } catch (error: any) {
       alert(`Ошибка загрузки файла: ${error.message}`);
     }
+  };
+
+  const toggleProductVisibility = (articul: string) => {
+    const ozonItem = state.ozonData[articul];
+    const typeKey = ozonItem?.type_id ? `type_${ozonItem.type_id}` : null;
+    const hasFileLoaded = typeKey && state.uploadedFiles[typeKey];
+    const hasCompetitors = (state.competitorSelections[articul] || []).length > 0;
+    const autoVisible = !hasFileLoaded || hasCompetitors;
+    const forcedShow = state.visibilityOverride[articul] === true;
+    const forcedHide = state.visibilityOverride[articul] === false;
+    const isVisible = forcedShow || (!forcedHide && autoVisible);
+    setState(prev => ({
+      ...prev,
+      visibilityOverride: { ...prev.visibilityOverride, [articul]: !isVisible }
+    }));
   };
 
   const deleteSelectedFile = async (filename: string) => {
@@ -3022,7 +3213,8 @@ priceHistory: [{
             ...prev,
             competitorSelections: {},
             uploadedFiles: {},
-            parsedPrices: {}
+            parsedPrices: {},
+            visibilityOverride: {}
           }));
         }
         
@@ -3098,6 +3290,20 @@ priceHistory: [{
   }, [state.competitorSelections]);
 
   const productTypes = useMemo(() => {
+    if (IS_DEV_PAGE) {
+      // На DEV: самые частные категории OZON (type_id — тип товара на последнем уровне)
+      const counts: Record<string, number> = {};
+      state.vmpData.forEach((item: VmpItem) => {
+        const ozonItem = state.ozonData[item.Артикул];
+        const typeId = ozonItem?.type_id;
+        if (typeId && state.ozonCategories[typeId]) {
+          const name = state.ozonCategories[typeId];
+          counts[name] = (counts[name] || 0) + 1;
+        }
+      });
+      return Object.entries(counts).sort((a, b) => b[1] - a[1]);
+    }
+    // По умолчанию: вид товара (ВидТовара)
     const counts: Record<string, number> = {};
     state.vmpData.forEach((item: VmpItem) => {
       if (item.ВидТовара) {
@@ -3105,14 +3311,23 @@ priceHistory: [{
       }
     });
     return Object.entries(counts).sort((a, b) => b[1] - a[1]);
-  }, [state.vmpData]);
+  }, [state.vmpData, state.ozonData, state.ozonCategories]);
 
   const filteredData = useMemo(() => {
     let data = state.vmpData;
 
-    // Фильтр по виду товара
     if (state.selectedType) {
-      data = data.filter((item: VmpItem) => item.ВидТовара === state.selectedType);
+      if (IS_DEV_PAGE) {
+        // На DEV: фильтр по самой частной категории OZON (type_id)
+        data = data.filter((item: VmpItem) => {
+          const ozonItem = state.ozonData[item.Артикул];
+          const typeId = ozonItem?.type_id;
+          return typeId && state.ozonCategories[typeId] === state.selectedType;
+        });
+      } else {
+        // По умолчанию: фильтр по виду товара
+        data = data.filter((item: VmpItem) => item.ВидТовара === state.selectedType);
+      }
     }
 
     // Скрываем товары со статусом "Архив/Нет" (нет в ozonData или архивные)
@@ -3122,92 +3337,75 @@ priceHistory: [{
     });
 
     return data;
-  }, [state.vmpData, state.selectedType, state.ozonData]);
+  }, [state.vmpData, state.selectedType, state.ozonData, state.ozonCategories]);
 
   const activeItem = state.activeModalSku ? state.vmpData.find(i => i.Артикул === state.activeModalSku) : null;
-  // currentExtraData теперь зависит от type_id товара, для которого открыто модальное окно
   const activeOzonItem = state.activeModalSku ? state.ozonData[state.activeModalSku] : null;
   const activeTypeKey = activeOzonItem?.type_id ? `type_${activeOzonItem.type_id}` : null;
   const currentExtraData = activeTypeKey ? state.uploadedFiles[activeTypeKey] : null;
 
-  // Разделяем товары на видимые и скрытые
+      // Разделяем товары на видимые и скрытые
+  // Логика: без файла — все видимы; с файлом — авто-скрываем только без конкурентов; ручной переключатель имеет приоритет
   const { visibleProducts, hiddenProducts } = useMemo(() => {
     const visible: VmpItem[] = [];
     const hidden: VmpItem[] = [];
-
-    // Проверяем, был ли выполнен парсинг (есть ли спарсенные цены)
-    const hasParsedPricesAny = hasParsedPrices(state.parsedPrices);
+    const override = state.visibilityOverride || {};
 
     filteredData.forEach((item: VmpItem) => {
-      const ozonItem = state.ozonData[item.Артикул];
-      const sku = ozonItem?.sku ? String(ozonItem.sku) : null;
-      const salesData = sku ? state.salesData[sku] : null;
-      const competitors = state.competitorSelections[item.Артикул] || [];
+      const articul = item.Артикул;
+      const ozonItem = state.ozonData[articul];
+      const competitors = state.competitorSelections[articul] || [];
 
-      // Проверяем, загружен ли файл для type_id этого товара
       const typeKey = ozonItem?.type_id ? `type_${ozonItem.type_id}` : null;
       const hasFileLoaded = typeKey && state.uploadedFiles[typeKey];
-
-      // Проверяем наличие СПАРСЕННОЙ цены (цена из API не считается)
-      const parsedData = getLatestParsedPrice(state.parsedPrices, item.Артикул);
-      const hasParsedPrice = !!parsedData;
-
-      // Проверяем наличие продаж
-      const hasSales = salesData && (salesData.qty > 0 || salesData.sum > 0);
-
-      // Проверяем наличие конкурентов
       const hasCompetitors = competitors.length > 0;
 
-      // Логика видимости:
-      // 1. До загрузки файла для подкатегории - все скрыты
-      // 2. После загрузки файла - показываем тех, у кого есть продажи и конкуренты
+      // Авто: без файла — все видимы; с файлом — видимы только с конкурентами
+      const autoVisible = !hasFileLoaded || hasCompetitors;
+      const forcedShow = override[articul] === true;
+      const forcedHide = override[articul] === false;
 
-      if (!hasFileLoaded) {
-        // До загрузки файла - все скрыты
-        hidden.push(item);
-      } else if (hasCompetitors && hasSales) {
-        // Показываем тех, у кого есть конкуренты и продажи (независимо от парсинга цены)
-        visible.push(item);
-      } else {
-        hidden.push(item);
-      }
+      const isVisible = forcedShow || (!forcedHide && autoVisible);
+      if (isVisible) visible.push(item);
+      else hidden.push(item);
     });
 
     return { visibleProducts: visible, hiddenProducts: hidden };
-  }, [filteredData, state.ozonData, state.salesData, state.competitorSelections, state.parsedPrices, state.uploadedFiles]);
+  }, [filteredData, state.ozonData, state.competitorSelections, state.uploadedFiles, state.visibilityOverride]);
 
-  // Группировка ВСЕХ товаров по типам Ozon (type_id - конкретная подкатегория)
-  // Включаем все товары, чтобы показать кнопки загрузки файлов для каждой подкатегории
+  // Группировка: на DEV — по категориям OZON (description_category_id), иначе — по type_id
   const groupedProducts = useMemo(() => {
     const groups: Record<string, { categoryId: number | null; categoryName: string; items: VmpItem[]; visibleItems: VmpItem[] }> = {};
-
-    // Создаём Set для быстрой проверки видимости
     const visibleSet = new Set(visibleProducts.map((item: VmpItem) => item.Артикул));
 
     filteredData.forEach((item: VmpItem) => {
       const ozonItem = state.ozonData[item.Артикул];
-      // Используем type_id как более конкретную категорию
-      const typeId = ozonItem?.type_id;
-      const categoryName = typeId ? (state.ozonCategories[typeId] || 'Тип не определён') : 'Без типа';
-      const groupKey = typeId?.toString() || 'no-type';
+      let groupKey: string;
+      let categoryId: number | null;
+      let categoryName: string;
+
+      if (IS_DEV_PAGE) {
+        // На DEV: самые частные категории (type_id)
+        const typeId = ozonItem?.type_id;
+        categoryId = typeId ?? null;
+        categoryName = typeId ? (state.ozonCategories[typeId] || 'Тип не определён') : 'Без типа';
+        groupKey = typeId?.toString() || 'no-type';
+      } else {
+        const typeId = ozonItem?.type_id;
+        categoryId = typeId ?? null;
+        categoryName = typeId ? (state.ozonCategories[typeId] || 'Тип не определён') : 'Без типа';
+        groupKey = typeId?.toString() || 'no-type';
+      }
 
       if (!groups[groupKey]) {
-        groups[groupKey] = {
-          categoryId: typeId || null,
-          categoryName,
-          items: [],
-          visibleItems: []
-        };
+        groups[groupKey] = { categoryId, categoryName, items: [], visibleItems: [] };
       }
       groups[groupKey].items.push(item);
-
-      // Добавляем в visibleItems только видимые товары
       if (visibleSet.has(item.Артикул)) {
         groups[groupKey].visibleItems.push(item);
       }
     });
 
-    // Сортируем группы: сначала с типами (по названию), потом без типа
     return Object.values(groups).sort((a, b) => {
       if (!a.categoryId && b.categoryId) return 1;
       if (a.categoryId && !b.categoryId) return -1;
@@ -3215,12 +3413,55 @@ priceHistory: [{
     });
   }, [filteredData, visibleProducts, state.ozonData, state.ozonCategories]);
 
+  if (IS_DEV_PAGE && state.vmpSourceMode === null) {
+    return (
+      <div className="container-fluid pb-5">
+        <h1 className="mb-4 text-center">Регулирование цен DEV</h1>
+        <p className="text-center text-muted mb-4">Выберите набор товаров для работы:</p>
+        <div className="row g-4 justify-content-center">
+          <div className="col-12 col-md-6 col-lg-4">
+            <div
+              className="card h-100 shadow-sm border-primary"
+              style={{ cursor: 'pointer' }}
+              onClick={() => fetchData('all')}
+            >
+              <div className="card-body text-center py-5">
+                <div className="display-4 mb-3">📦</div>
+                <h5 className="card-title">Все продукты</h5>
+                <p className="card-text text-muted small">
+                  Загрузка полного списка товаров (pc=0)
+                </p>
+                <span className="badge bg-primary">Загрузить</span>
+              </div>
+            </div>
+          </div>
+          <div className="col-12 col-md-6 col-lg-4">
+            <div
+              className="card h-100 shadow-sm border-success"
+              style={{ cursor: 'pointer' }}
+              onClick={() => fetchData('ozon70')}
+            >
+              <div className="card-body text-center py-5">
+                <div className="display-4 mb-3">📈</div>
+                <h5 className="card-title">Доля &gt;70% на OZON</h5>
+                <p className="card-text text-muted small">
+                  Только товары с долей на OZON более 70% (pc=0.7)
+                </p>
+                <span className="badge bg-success">Загрузить</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   if (state.loading) return <div className="text-center mt-5"><div className="spinner-border text-primary" role="status"></div><p className="mt-2">Loading data...</p></div>;
   if (state.error) return <div className="alert alert-danger m-4">{state.error}</div>;
 
   return (
     <div className="container-fluid pb-5">
-      <h1 className="mb-4 text-center">Регулирование цен</h1>
+      <h1 className="mb-4 text-center">{IS_DEV_PAGE ? 'Регулирование цен DEV' : 'Регулирование цен'}</h1>
       
       {state.usingFallback && (
         <div className="alert alert-warning mb-3">
@@ -3365,7 +3606,7 @@ priceHistory: [{
 
       <div className="tag-cloud">
         <div className="d-flex justify-content-between align-items-center mb-3">
-          <h5 className="m-0">Фильтр по виду товара:</h5>
+          <h5 className="m-0">{IS_DEV_PAGE ? 'Фильтр по типу товара OZON:' : 'Фильтр по виду товара:'}</h5>
           <button className="btn btn-secondary btn-sm" onClick={() => handleTypeSelect(null)}>Сбросить фильтр</button>
         </div>
         <div className="d-flex flex-wrap gap-2">
@@ -3472,12 +3713,13 @@ priceHistory: [{
           </thead>
           <tbody>
             {groupedProducts.map((group, groupIdx) => {
-              const isCollapsed = state.collapsedCategories[group.categoryId?.toString() || 'no-type'];
+              const groupKey = group.categoryId?.toString() || 'no-type';
+              const isCollapsed = state.collapsedCategories[groupKey];
               const typeKey = `type_${group.categoryId || 'no-type'}`;
               const hasTypeFile = state.uploadedFiles[typeKey];
 
               return (
-                <React.Fragment key={`group-${group.categoryId || 'no-type'}-${groupIdx}`}>
+                <React.Fragment key={`group-${groupKey}-${groupIdx}`}>
                   {/* Заголовок подкатегории */}
                   <tr className="table-light">
                     <td colSpan={8} className="py-2 px-3" style={{background: '#f8f9fa'}}>
@@ -3527,41 +3769,52 @@ priceHistory: [{
                                 const reader = new FileReader();
                                 reader.onload = (evt) => {
                                   try {
+                                    console.log('[upload] Начало загрузки файла для группы:', group.categoryName, 'товаров в группе:', group.items.length);
                                     const data = new Uint8Array(evt.target?.result as ArrayBuffer);
                                     const workbook = window.XLSX.read(data, { type: 'array' });
                                     const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
                                     const jsonData = window.XLSX.utils.sheet_to_json(firstSheet, { header: 1 }) as any[][];
+                                    console.log('[upload] Прочитано строк:', jsonData?.length ?? 0, 'заголовок:', jsonData?.[0]);
 
-                                    // Автоматический подбор конкурентов для товаров этой подкатегории
                                     const mapping = detectColumns(jsonData);
-                                    const categoryProducts = group.items; // Все товары этой подкатегории
-                                    const autoMatched = autoMatchCompetitors(jsonData, mapping, categoryProducts);
-
-                                    // Объединяем с существующими конкурентами
-                                    const updatedSelections = { ...state.competitorSelections };
-                                    Object.entries(autoMatched).forEach(([sku, competitors]) => {
-                                      updatedSelections[sku] = competitors;
+                                    console.log('[upload] detectColumns результат:', mapping);
+                                    if (mapping.name === -1 || mapping.link === -1 || mapping.brand === -1 || mapping.qty === -1 || mapping.sum === -1) {
+                                      alert('В файле не найдены все нужные колонки. Нужны: Название товара, Ссылка на товар, Бренд (или Продавец), Заказано, штуки, Заказано на сумму, ₽');
+                                      return;
+                                    }
+                                    const latest = stateRef.current;
+                                    // Для загрузки в группе всегда используем товары этой группы (то, что видит пользователь)
+                                    const categoryProducts = group.items.length > 0 ? group.items : latest.vmpData.filter((item: VmpItem) => {
+                                      const ozonItem = latest.ozonData[item.Артикул];
+                                      const typeId = ozonItem?.type_id;
+                                      return typeId != null && Number(typeId) === Number(group.categoryId);
                                     });
+                                    console.log('[upload] Группа:', group.categoryName, 'товаров для подбора:', categoryProducts.length, 'dataStartRowIndex:', mapping.dataStartRowIndex, 'строк данных:', jsonData.length - (mapping.dataStartRowIndex ?? 1));
+                                    if (categoryProducts.length === 0) {
+                                      console.warn('[upload] В группе нет товаров для подбора (categoryId=', group.categoryId, ')');
+                                    }
+                                    const autoMatched = autoMatchCompetitors(jsonData, mapping, categoryProducts);
+                                    console.log('[upload] autoMatchCompetitors вернул ключей:', Object.keys(autoMatched).length, 'пример артикулов:', Object.keys(autoMatched).slice(0, 3));
+
+                                    // Объединяем с актуальными конкурентами (не перезаписываем другие группы)
+                                    const mergedSelections = { ...latest.competitorSelections, ...autoMatched };
+                                    const updatedFiles = { ...latest.uploadedFiles, [typeKey]: jsonData };
 
                                     const matchedCount = Object.keys(autoMatched).length;
                                     const totalCompetitors = Object.values(autoMatched).reduce((sum, arr) => sum + arr.length, 0);
 
-                                    const updatedFiles = {
-                                      ...state.uploadedFiles,
-                                      [typeKey]: jsonData
-                                    };
-
                                     // Сохраняем на сервер
                                     saveDataToServer({
-                                      competitorSelections: updatedSelections,
-                                      parsedPrices: state.parsedPrices,
+                                      competitorSelections: mergedSelections,
+                                      parsedPrices: latest.parsedPrices,
                                       uploadedFiles: updatedFiles,
+                                      visibilityOverride: latest.visibilityOverride,
                                       lastUpdated: new Date().toISOString()
                                     }, selectedFile).then(() => {
                                       setState((prev: AppState) => ({
                                         ...prev,
                                         uploadedFiles: updatedFiles,
-                                        competitorSelections: updatedSelections
+                                        competitorSelections: mergedSelections
                                       }));
                                       console.log(`✅ Файл загружен для ${group.categoryName}: ${jsonData.length - 1} строк, ${matchedCount} товаров с конкурентами (${totalCompetitors} всего)`);
                                     });
@@ -3580,7 +3833,7 @@ priceHistory: [{
                     </td>
                   </tr>
 
-                  {/* Товары подкатегории */}
+                  {/* Товары подкатегории: при раскрытии показываем только видимые; скрытые — в отдельном блоке ниже */}
                   {!isCollapsed && group.visibleItems.map((item: VmpItem, idx: number) => {
               const ozonItem = state.ozonData[item.Артикул];
               const imageUrl = ozonItem?.primary_image || ozonItem?.images?.[0];
@@ -3618,14 +3871,25 @@ priceHistory: [{
 
               return (
                 <React.Fragment key={`${item.Артикул}-${idx}`}>
-                  {/* Основная строка товара */}
-                  <tr className={`product-row ${hasWarningCompetitor ? 'table-warning' : ''}`}>
+                  <tr
+                    className={`product-row ${hasWarningCompetitor ? 'table-warning' : ''}`}
+                  >
                     <td className="text-center">
-                      {hasWarningCompetitor && (
-                        <i className="bi bi-exclamation-triangle-fill text-danger"
-                           title="Есть конкурент дешевле с большими продажами!"
-                           style={{fontSize: '1.2rem'}}></i>
-                      )}
+                      <div className="d-flex align-items-center justify-content-center gap-1">
+                        {hasWarningCompetitor && (
+                          <i className="bi bi-exclamation-triangle-fill text-danger"
+                             title="Есть конкурент дешевле с большими продажами!"
+                             style={{fontSize: '1.2rem'}}></i>
+                        )}
+                        <button
+                          type="button"
+                          className="btn btn-sm btn-outline-secondary border-0 p-1"
+                          title="Скрыть товар"
+                          onClick={(e) => { e.stopPropagation(); toggleProductVisibility(item.Артикул); }}
+                        >
+                          <i className="bi bi-eye-slash"></i>
+                        </button>
+                      </div>
                     </td>
                     <td>
                       {imageUrl ? (
@@ -3777,15 +4041,19 @@ priceHistory: [{
               {(() => {
                 const isExpanded = state.expandedProducts[item.Артикул];
 
-                // Сортируем по сумме продаж
-                const sortedCompetitors = [...competitors].sort((a: CompetitorRow, b: CompetitorRow) => {
-                  const sumA = typeof a.sum === 'number' ? a.sum : parseFloat(String(a.sum || '0').replace(/[^\d.-]/g, '')) || 0;
-                  const sumB = typeof b.sum === 'number' ? b.sum : parseFloat(String(b.sum || '0').replace(/[^\d.-]/g, '')) || 0;
-                  return sumB - sumA;
-                });
+                // Сортируем по сумме продаж; показываем максимум 10 конкурентов на товар
+                const sortedCompetitors = [...competitors]
+                  .sort((a: CompetitorRow, b: CompetitorRow) => {
+                    const sumA = typeof a.sum === 'number' ? a.sum : parseFloat(String(a.sum || '0').replace(/[^\d.-]/g, '')) || 0;
+                    const sumB = typeof b.sum === 'number' ? b.sum : parseFloat(String(b.sum || '0').replace(/[^\d.-]/g, '')) || 0;
+                    return sumB - sumA;
+                  })
+                  .slice(0, 10);
 
-                // Показываем первые 3 или все, если развернуто
-                const competitorsToShow = isExpanded ? sortedCompetitors : sortedCompetitors.slice(0, 3);
+                // 5 открыты по умолчанию, ещё 5 — по кнопке «Показать ещё»
+                const visibleCount = 5;
+                const competitorsToShow = isExpanded ? sortedCompetitors : sortedCompetitors.slice(0, visibleCount);
+                const hasHidden = sortedCompetitors.length > visibleCount;
 
                 return (
                   <>
@@ -3964,8 +4232,8 @@ priceHistory: [{
                       );
                     })}
 
-                    {/* Кнопка показать все/скрыть */}
-                    {sortedCompetitors.length > 3 && (
+                    {/* Кнопка «Показать ещё» / «Свернуть» (5 открыты, 5 свёрнуты) */}
+                    {hasHidden && (
                       <tr>
                         <td colSpan={7} className="text-center border-top-0">
                           <button
@@ -3983,11 +4251,11 @@ priceHistory: [{
                           >
                             {isExpanded ? (
                               <>
-                                <i className="bi bi-chevron-up"></i> Скрыть ({sortedCompetitors.length - 3})
+                                <i className="bi bi-chevron-up"></i> Свернуть ({sortedCompetitors.length - visibleCount})
                               </>
                             ) : (
                               <>
-                                <i className="bi bi-chevron-down"></i> Показать все ({sortedCompetitors.length})
+                                <i className="bi bi-chevron-down"></i> Показать ещё ({Math.min(visibleCount, sortedCompetitors.length - visibleCount)})
                               </>
                             )}
                           </button>
@@ -4099,14 +4367,7 @@ priceHistory: [{
           <details className="mt-4">
             <summary className="cursor-pointer text-muted mb-2 p-2 bg-light rounded">
               <i className="bi bi-eye-slash me-2"></i>
-              Скрытые товары ({hiddenProducts.length}) —
-              {(() => {
-                const hasFile = state.selectedType && state.uploadedFiles[state.selectedType];
-                const hasParsedAny = hasParsedPrices(state.parsedPrices);
-                if (!hasFile) return 'файл не загружен';
-                if (!hasParsedAny) return 'без продаж';
-                return 'без спарсенной цены, конкурентов или продаж';
-              })()}
+              Скрытые товары ({hiddenProducts.length}) — без конкурентов или скрыты вручную
             </summary>
             <table className="product-table table-hover align-middle mt-2" style={{opacity: 0.7}}>
               <thead className="table-light">
@@ -4118,6 +4379,7 @@ priceHistory: [{
                   <th style={{width: '120px'}}>Сумма заказа</th>
                   <th>Конкуренты</th>
                   <th>Причина скрытия</th>
+                  <th style={{width: '90px'}}>Действие</th>
                 </tr>
               </thead>
               <tbody>
@@ -4128,24 +4390,16 @@ priceHistory: [{
                   const salesData = sku ? state.salesData[sku] : null;
                   const competitors = state.competitorSelections[item.Артикул] || [];
                   const parsedData = getLatestParsedPrice(state.parsedPrices, item.Артикул);
+                  const isManualHide = state.visibilityOverride[item.Артикул] === false;
 
-                  // Определяем причины скрытия
+                  // Причины скрытия: ручное или авто (нет конкурентов при загруженном файле)
                   const reasons: string[] = [];
-                  const hasFileLoaded = state.selectedType && state.uploadedFiles[state.selectedType];
-                  const hasParsedPricesAny = hasParsedPrices(state.parsedPrices);
-
-                  if (!hasFileLoaded) {
-                    reasons.push('Файл не загружен');
-                  } else if (!hasParsedPricesAny) {
-                    // До парсинга - скрываем только из-за отсутствия продаж
-                    if (!salesData || (salesData.qty === 0 && salesData.sum === 0)) reasons.push('Нет продаж');
-                  } else {
-                    // После парсинга
-                    if (!parsedData) {
-                      reasons.push(ozonItem?.customer_price ? 'Цена из API (не спарсена)' : 'Нет цены');
-                    }
-                    if (!salesData || (salesData.qty === 0 && salesData.sum === 0)) reasons.push('Нет продаж');
-                    if (competitors.length === 0) reasons.push('Нет конкурентов');
+                  const itemTypeKey = ozonItem?.type_id ? `type_${ozonItem.type_id}` : null;
+                  const hasFileLoaded = itemTypeKey && state.uploadedFiles[itemTypeKey];
+                  if (isManualHide) {
+                    reasons.push('Скрыт вручную');
+                  } else if (hasFileLoaded && competitors.length === 0) {
+                    reasons.push('Нет конкурентов');
                   }
 
                   return (
@@ -4208,8 +4462,18 @@ priceHistory: [{
                       </td>
                       <td>
                         <small className="text-muted">
-                          {reasons.join(', ')}
+                          {reasons.join(', ') || '—'}
                         </small>
+                      </td>
+                      <td>
+                        <button
+                          type="button"
+                          className="btn btn-sm btn-outline-primary"
+                          title="Показать товар"
+                          onClick={() => toggleProductVisibility(item.Артикул)}
+                        >
+                          <i className="bi bi-eye me-1"></i> Показать
+                        </button>
                       </td>
                     </tr>
                   );
@@ -4241,6 +4505,7 @@ priceHistory: [{
                 competitorSelections: updatedSelections,
                 parsedPrices: state.parsedPrices,
                 uploadedFiles: state.uploadedFiles,
+                visibilityOverride: state.visibilityOverride,
                 lastUpdated: new Date().toISOString()
               }, selectedFile).then(() => {
                 setState((prev: AppState) => ({

@@ -44,7 +44,7 @@
         }
 
         body {
-            background: linear-gradient(135deg, #f6f8ff 0%, #f0f4ff 100%);
+            background: transparent;
             font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
             color: var(--dark-color);
             min-height: 100vh;
@@ -825,6 +825,9 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 </head>
 <body>
+    <script>
+      window.PARSER_API_BASE = window.location.pathname.includes('pricecheck-dev') ? '/pricecheck-dev/api' : '/pricecheck/api';
+    </script>
     <div id="root">
         <div style="display: flex; justify-content: center; align-items: center; height: 100vh; flex-direction: column;">
             <div class="spinner-border text-primary" role="status" style="width: 3rem; height: 3rem;"></div>

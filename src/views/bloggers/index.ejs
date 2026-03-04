@@ -1,0 +1,833 @@
+<%- include('../layouts/main', { title, body: `
+<style>
+  .bloggers-container { width: 100%; max-width: none; margin: 0; font-size: 1rem; line-height: 1.6; }
+  .bloggers-page-title { font-size: 1.75rem; font-weight: 700; color: #111827; margin-bottom: 0.25rem; letter-spacing: -0.02em; }
+  .dark .bloggers-page-title { color: #f9fafb; }
+  .bloggers-subtitle { color: #4b5563; margin-bottom: 0; font-size: 0.9375rem; }
+  .dark .bloggers-subtitle { color: #9ca3af; }
+  .bloggers-section { background: #fff; border: 1px solid #e5e7eb; border-radius: 0.75rem; padding: 1.5rem; margin-bottom: 1.5rem; }
+  .dark .bloggers-section { background: #1f2937; border-color: #374151; }
+  .bloggers-section-title { font-size: 1.125rem; font-weight: 600; color: #111827; margin-bottom: 0.5rem; }
+  .dark .bloggers-section-title { color: #f3f4f6; }
+  .bloggers-section-desc { font-size: 0.875rem; color: #6b7280; margin-bottom: 1rem; }
+  .dark .bloggers-section-desc { color: #9ca3af; }
+  .bloggers-form { display: flex; flex-direction: column; gap: 1.25rem; }
+  .bloggers-row { display: flex; gap: 1rem; flex-wrap: wrap; align-items: stretch; }
+  .bloggers-input { flex: 1; min-width: 200px; padding: 0.75rem 1rem; border: 1px solid #d1d5db; border-radius: 0.5rem; font-size: 0.9375rem; background: #fff; line-height: 1.4; }
+  .dark .bloggers-input { background: #374151; border-color: #4b5563; color: #f3f4f6; }
+  .bloggers-input::placeholder { color: #9ca3af; }
+  .bloggers-select { min-width: 280px; padding: 0.75rem 1rem; border: 1px solid #d1d5db; border-radius: 0.5rem; font-size: 0.9375rem; background: #fff; }
+  .dark .bloggers-select { background: #374151; border-color: #4b5563; color: #f3f4f6; }
+  .bloggers-label { display: block; font-size: 0.875rem; font-weight: 600; color: #374151; margin-bottom: 0.5rem; }
+  .dark .bloggers-label { color: #e5e7eb; }
+  .bloggers-btn { padding: 0.75rem 1.5rem; background: #dc2626; color: #fff; border: none; border-radius: 0.5rem; font-weight: 600; cursor: pointer; font-size: 0.9375rem; white-space: nowrap; }
+  .bloggers-btn:hover { background: #b91c1c; }
+  .bloggers-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+  .bloggers-btn-outline { padding: 0.6rem 1.25rem; background: transparent; color: #dc2626; border-radius: 0.5rem; border: 1px solid #fecaca; font-weight: 600; font-size: 0.875rem; cursor: pointer; white-space: nowrap; }
+  .bloggers-btn-outline:hover { background: #fef2f2; }
+  .bloggers-btn-outline:disabled { opacity: 0.6; cursor: not-allowed; }
+  .bloggers-error { padding: 1rem 1.25rem; background: #fef2f2; border: 1px solid #fecaca; color: #b91c1c; border-radius: 0.5rem; margin-bottom: 1rem; display: none; font-size: 0.9375rem; }
+  .dark .bloggers-error { background: #450a0a; border-color: #991b1b; color: #fca5a5; }
+  .bloggers-success { padding: 1rem 1.25rem; background: #f0fdf4; border: 1px solid #bbf7d0; color: #166534; border-radius: 0.5rem; margin-bottom: 1rem; display: none; font-size: 0.9375rem; }
+  .dark .bloggers-success { background: #14532d; border-color: #166534; color: #86efac; }
+  .bloggers-result { display: none; border: 1px solid #e5e7eb; border-radius: 0.75rem; overflow: hidden; background: #fff; }
+  .dark .bloggers-result { background: #1f2937; border-color: #374151; }
+  .bloggers-result-inner { display: flex; flex-wrap: wrap; gap: 1rem; padding: 1rem; align-items: flex-start; }
+  .bloggers-thumb { flex-shrink: 0; border-radius: 0.5rem; overflow: hidden; max-width: 320px; }
+  .bloggers-thumb img { width: 100%; height: auto; display: block; }
+  .bloggers-meta { flex: 1; min-width: 200px; }
+  .bloggers-meta h3 { font-size: 1rem; font-weight: 600; color: #111827; margin-bottom: 0.5rem; line-height: 1.4; }
+  .dark .bloggers-meta h3 { color: #f9fafb; }
+  .bloggers-channel { font-size: 0.9375rem; color: #6b7280; margin-bottom: 0.75rem; }
+  .dark .bloggers-channel { color: #9ca3af; }
+  .bloggers-stat { padding: 0.5rem 0.75rem; background: #f3f4f6; border-radius: 0.5rem; font-size: 0.875rem; }
+  .dark .bloggers-stat { background: #374151; color: #e5e7eb; }
+  .bloggers-stat strong { color: #111827; }
+  .dark .bloggers-stat strong { color: #f9fafb; }
+  .bloggers-date { font-size: 0.875rem; color: #6b7280; margin-top: 0.5rem; }
+  .dark .bloggers-date { color: #9ca3af; }
+  .bloggers-promo-badge { display: inline-block; margin-top: 0.5rem; padding: 0.375rem 0.75rem; background: #eff6ff; color: #1d4ed8; border-radius: 0.5rem; font-size: 0.8125rem; }
+  .dark .bloggers-promo-badge { background: #1e3a8a; color: #93c5fd; }
+  .bloggers-table-wrap { overflow-x: auto; margin-top: 0; border: none; border-radius: 0; }
+  .dark .bloggers-table-wrap { border: none; }
+  .bloggers-table { width: 100%; border-collapse: collapse; font-size: 0.9375rem; }
+  .bloggers-table th { text-align: left; padding: 0.875rem 1.25rem; background: #f9fafb; color: #374151; font-weight: 600; white-space: nowrap; font-size: 0.8125rem; text-transform: uppercase; letter-spacing: 0.03em; }
+  .dark .bloggers-table th { background: #374151; color: #e5e7eb; }
+  .bloggers-table td { padding: 0.875rem 1.25rem; border-top: 1px solid #e5e7eb; color: #111827; vertical-align: middle; }
+  .dark .bloggers-table td { border-top-color: #374151; color: #e5e7eb; }
+  .bloggers-table tbody tr:nth-child(even) { background: #f9fafb; }
+  .dark .bloggers-table tbody tr:nth-child(even) { background: #111827; }
+  .bloggers-table tbody tr:hover { background: #f3f4f6; }
+  .dark .bloggers-table tbody tr:hover { background: #374151; }
+  .bloggers-table .video-cell { max-width: 280px; }
+  .bloggers-table .video-cell a { color: #2563eb; text-decoration: none; font-weight: 500; }
+  .bloggers-table .video-cell a:hover { text-decoration: underline; }
+  .bloggers-table .num { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+  .bloggers-table .cost { text-align: right; font-variant-numeric: tabular-nums; }
+  .bloggers-edit, .bloggers-del { display: inline-flex; align-items: center; justify-content: center; width: 2rem; height: 2rem; padding: 0; border-radius: 0.375rem; cursor: pointer; border: 1px solid transparent; }
+  .bloggers-edit svg, .bloggers-del svg { width: 1rem; height: 1rem; }
+  .bloggers-del { color: #dc2626; background: transparent; border-color: #fecaca; margin-left: 0.25rem; }
+  .bloggers-del:hover { background: #fef2f2; }
+  .dark .bloggers-del { border-color: #991b1b; color: #fca5a5; }
+  .dark .bloggers-del:hover { background: #450a0a; }
+  .bloggers-edit { color: #2563eb; background: transparent; border-color: #93c5fd; }
+  .bloggers-edit:hover { background: #eff6ff; }
+  .dark .bloggers-edit { border-color: #1d4ed8; color: #93c5fd; }
+  .dark .bloggers-edit:hover { background: #1e3a8a; }
+  .bloggers-save { padding: 0.375rem 0.75rem; font-size: 0.8125rem; color: #166534; background: #dcfce7; border: 1px solid #22c55e; border-radius: 0.375rem; cursor: pointer; margin-right: 0.25rem; }
+  .bloggers-save:hover { background: #bbf7d0; }
+  .bloggers-cancel { padding: 0.375rem 0.75rem; font-size: 0.8125rem; color: #6b7280; background: #f3f4f6; border: 1px solid #d1d5db; border-radius: 0.375rem; cursor: pointer; }
+  .bloggers-cancel:hover { background: #e5e7eb; }
+  .dark .bloggers-cancel { background: #4b5563; border-color: #6b7280; color: #e5e7eb; }
+  .dark .bloggers-cancel:hover { background: #6b7280; }
+  .bloggers-table .edit-select { width: 100%; max-width: 200px; padding: 0.5rem 0.625rem; font-size: 0.875rem; border: 1px solid #d1d5db; border-radius: 0.375rem; }
+  .dark .bloggers-table .edit-select { background: #374151; border-color: #4b5563; color: #f3f4f6; }
+  .bloggers-table .edit-cost { width: 100px; padding: 0.5rem 0.625rem; font-size: 0.875rem; border: 1px solid #d1d5db; border-radius: 0.375rem; text-align: right; }
+  .dark .bloggers-table .edit-cost { background: #374151; border-color: #4b5563; color: #f3f4f6; }
+  .bloggers-input-num { width: 120px; padding: 0.75rem 1rem; border: 1px solid #d1d5db; border-radius: 0.5rem; font-size: 0.9375rem; background: #fff; }
+  .dark .bloggers-input-num { background: #374151; border-color: #4b5563; color: #f3f4f6; }
+  .report-status { display: none; margin-top: 0.75rem; padding: 1rem 1.25rem; background: #eff6ff; border: 1px solid #93c5fd; border-radius: 0.5rem; font-size: 0.9375rem; color: #1e40af; }
+  .report-status.visible { display: flex; align-items: center; gap: 0.75rem; }
+  .dark .report-status { background: #1e3a8a; border-color: #2563eb; color: #93c5fd; }
+  .report-status-spinner { width: 20px; height: 20px; border: 2px solid #93c5fd; border-top-color: transparent; border-radius: 50%; animation: report-spin 0.8s linear infinite; flex-shrink: 0; }
+  .dark .report-status-spinner { border-color: #3b82f6; border-top-color: transparent; }
+  @keyframes report-spin { to { transform: rotate(360deg); } }
+  .sales-by-promo-block { margin-top: 0; margin-bottom: 0; padding: 1rem; background: #f8fafc; border-radius: 0.5rem; }
+  .dark .sales-by-promo-block { background: #1e293b; }
+  .sales-by-promo-table-wrap { overflow-x: auto; }
+  .sales-by-promo-table { margin-top: 0.5rem; }
+  .sales-by-promo-table thead th { font-size: 0.8125rem; }
+  .sales-by-promo-empty { margin: 0.5rem 0 0; font-size: 0.9375rem; color: #64748b; }
+  .dark .sales-by-promo-empty { color: #94a3b8; }
+  .analytics-wrap { margin-top: 0.5rem; }
+  .analytics-promo-section { margin-bottom: 1.25rem; border: 1px solid #e2e8f0; border-radius: 0.75rem; overflow: hidden; }
+  .dark .analytics-promo-section { border-color: #334155; }
+  .analytics-promo-header { padding: 1rem 1.25rem; background: #f1f5f9; font-weight: 600; font-size: 1rem; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.75rem; }
+  .dark .analytics-promo-header { background: #334155; color: #e2e8f0; }
+  .analytics-promo-sales { font-size: 0.9375rem; color: #0f766e; font-weight: 600; }
+  .dark .analytics-promo-sales { color: #5eead4; }
+  .analytics-promo-metrics { display: flex; flex-wrap: wrap; gap: 0.75rem; align-items: center; font-size: 0.875rem; color: #4b5563; font-weight: 500; }
+  .dark .analytics-promo-metrics { color: #cbd5f5; }
+  .analytics-header-row { display: flex; justify-content: space-between; align-items: center; gap: 1rem; margin-bottom: 0.75rem; }
+  .analytics-child-table { margin: 0; }
+  .analytics-child-table .bloggers-table { margin: 0; border-top: none; }
+  .analytics-child-table .bloggers-table th { font-size: 0.8125rem; padding: 0.75rem 1.25rem; background: #f8fafc; text-transform: uppercase; letter-spacing: 0.03em; }
+  .dark .analytics-child-table .bloggers-table th { background: #1e293b; }
+  .analytics-child-table .bloggers-table td { font-size: 0.9375rem; padding: 0.75rem 1.25rem; }
+  .analytics-no-integrations { padding: 1rem 1.25rem; font-size: 0.9375rem; color: #64748b; }
+  .dark .analytics-no-integrations { color: #94a3b8; }
+  .analytics-detail-btn { padding: 0.5rem 1rem; font-size: 0.8125rem; font-weight: 500; color: #0369a1; background: #e0f2fe; border: 1px solid #0ea5e9; border-radius: 0.5rem; cursor: pointer; }
+  .analytics-detail-btn:hover { background: #bae6fd; }
+  .dark .analytics-detail-btn { color: #7dd3fc; background: #0c4a6e; border-color: #0284c7; }
+  .dark .analytics-detail-btn:hover { background: #075985; }
+  .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 100; align-items: center; justify-content: center; padding: 1.5rem; }
+  .modal-overlay.visible { display: flex; }
+  .modal-box { background: #fff; border-radius: 0.75rem; max-width: 36rem; width: 100%; max-height: 85vh; overflow: hidden; display: flex; flex-direction: column; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.25); }
+  .modal-box-chart { max-width: 42rem; }
+  .dark .modal-box { background: #1f2937; }
+  .modal-header { padding: 1.25rem 1.5rem; border-bottom: 1px solid #e5e7eb; font-weight: 600; font-size: 1.125rem; display: flex; justify-content: space-between; align-items: center; }
+  .dark .modal-header { border-color: #374151; }
+  .modal-close { padding: 0.5rem 1rem; font-size: 0.875rem; color: #6b7280; background: transparent; border: 1px solid #d1d5db; border-radius: 0.5rem; cursor: pointer; }
+  .modal-close:hover { background: #f3f4f6; }
+  .dark .modal-close { border-color: #4b5563; color: #9ca3af; }
+  .dark .modal-close:hover { background: #374151; }
+  .modal-body { padding: 1.25rem 1.5rem; overflow: auto; }
+  .modal-table { width: 100%; border-collapse: collapse; font-size: 0.9375rem; }
+  .modal-table th { text-align: left; padding: 0.75rem 1rem; background: #f9fafb; font-weight: 600; font-size: 0.8125rem; }
+  .dark .modal-table th { background: #374151; }
+  .modal-table td { padding: 0.75rem 1rem; border-top: 1px solid #e5e7eb; }
+  .dark .modal-table td { border-top-color: #374151; }
+  .modal-table .num { text-align: right; font-variant-numeric: tabular-nums; }
+  .bloggers-placeholder { color: #64748b; font-size: 0.9375rem; }
+  .dark .bloggers-placeholder { color: #94a3b8; }
+</style>
+
+<div class="bloggers-container">
+  <h1 class="bloggers-page-title">Блогеры</h1>
+  <p class="bloggers-subtitle" style="margin-bottom: 1.5rem;">Эффективность интеграций: сохраняйте ролики с промокодом OZON, просмотрами и стоимостью.</p>
+
+  <section class="bloggers-section" aria-labelledby="section-add-heading">
+    <h2 id="section-add-heading" class="bloggers-section-title">Добавить интеграцию</h2>
+    <p class="bloggers-section-desc">Ссылка на YouTube-ролик, промокод OZON и стоимость интеграции.</p>
+  <form id="bloggersForm" class="bloggers-form">
+    <div>
+      <label for="videoUrl" class="bloggers-label">Ссылка на ролик YouTube</label>
+      <div class="bloggers-row">
+        <input type="url" id="videoUrl" class="bloggers-input" placeholder="https://www.youtube.com/watch?v=... или https://youtu.be/..." autocomplete="off" />
+      </div>
+    </div>
+    <div class="bloggers-row" style="gap: 1rem; flex-wrap: wrap;">
+      <div>
+        <label for="promoSelect" class="bloggers-label">Промокод OZON</label>
+        <select id="promoSelect" class="bloggers-select" required>
+          <option value="">— Выберите промокод —</option>
+        </select>
+      </div>
+      <div>
+        <label for="integrationCost" class="bloggers-label">Стоимость интеграции, ₽</label>
+        <input type="number" id="integrationCost" class="bloggers-input-num" placeholder="0" min="0" step="1" />
+      </div>
+      <div style="align-self: flex-end;">
+        <button type="submit" id="submitBtn" class="bloggers-btn">Добавить интеграцию</button>
+      </div>
+    </div>
+    <p id="promoLoadError" class="bloggers-error" style="margin-top: 0.5rem; display: none;"></p>
+  </form>
+  <div id="bloggersError" class="bloggers-error"></div>
+  <div id="bloggersSuccess" class="bloggers-success">Интеграция добавлена.</div>
+  </section>
+
+  <section class="bloggers-section" aria-labelledby="section-period-heading">
+    <h2 id="section-period-heading" class="bloggers-section-title">Период</h2>
+    <p class="bloggers-section-desc">От выбранного периода зависят: какие видео показаны (дата выхода ролика), за какой месяц формируется отчёт OZON и продажи по акциям.</p>
+    <div class="bloggers-row" style="margin-bottom: 0.75rem; gap: 0.75rem; flex-wrap: wrap;">
+      <div>
+        <label for="salesMonth" class="bloggers-label">Месяц</label>
+        <select id="salesMonth" class="bloggers-select"></select>
+      </div>
+      <div>
+        <label for="salesYear" class="bloggers-label">Год</label>
+        <select id="salesYear" class="bloggers-select"></select>
+      </div>
+    </div>
+    <div id="reportStatus" class="report-status" role="status">
+      <span class="report-status-spinner" aria-hidden="true"></span>
+      <span id="reportStatusText">Формирование отчёта…</span>
+    </div>
+  </section>
+
+  <section class="bloggers-section" aria-labelledby="analyticsTitle" id="analyticsSection">
+    <div class="analytics-header-row">
+      <h2 id="analyticsTitle" class="bloggers-section-title" style="display: none;">Аналитика за период</h2>
+      <button type="button" id="refreshSalesBtn" class="bloggers-btn-outline">Обновить продажи за период</button>
+    </div>
+    <div id="analyticsContainer">
+      <p class="bloggers-placeholder">Выберите период — появится таблица продаж по акциям с привязанными интеграциями.</p>
+    </div>
+  </section>
+
+  <div id="detailsModal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="detailsModalTitle">
+    <div class="modal-box modal-box-chart">
+      <div class="modal-header">
+        <span id="detailsModalTitle">Детализация покупок</span>
+        <button type="button" class="modal-close" id="detailsModalClose">Закрыть</button>
+      </div>
+      <div class="modal-body">
+        <div id="detailsModalChartWrap" style="display: none; position: relative; height: 280px;">
+          <canvas id="detailsModalChart"></canvas>
+        </div>
+        <p id="detailsModalLoading" class="bloggers-placeholder" style="margin: 0;">Загрузка…</p>
+        <p id="detailsModalEmpty" style="display: none; color: #64748b; margin: 0;">Нет записей за выбранный период.</p>
+        <p id="detailsModalError" style="display: none; color: #dc2626; margin: 0;">Ошибка загрузки.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  var form = document.getElementById('bloggersForm');
+  var input = document.getElementById('videoUrl');
+  var promoSelect = document.getElementById('promoSelect');
+  var costInput = document.getElementById('integrationCost');
+  var promoLoadError = document.getElementById('promoLoadError');
+  var submitBtn = document.getElementById('submitBtn');
+  var salesMonthSelect = document.getElementById('salesMonth');
+  var salesYearSelect = document.getElementById('salesYear');
+  var refreshSalesBtn = document.getElementById('refreshSalesBtn');
+  var reportStatusEl = document.getElementById('reportStatus');
+  var reportStatusText = document.getElementById('reportStatusText');
+  var analyticsContainer = document.getElementById('analyticsContainer');
+  var analyticsTitle = document.getElementById('analyticsTitle');
+  var errEl = document.getElementById('bloggersError');
+  var successEl = document.getElementById('bloggersSuccess');
+
+  function setReportStatus(message, visible) {
+    if (reportStatusText) reportStatusText.textContent = message || '';
+    if (reportStatusEl) {
+      if (visible) reportStatusEl.classList.add('visible');
+      else reportStatusEl.classList.remove('visible');
+    }
+  }
+
+  function showError(msg) {
+    errEl.textContent = msg || '';
+    errEl.style.display = msg ? 'block' : 'none';
+    if (msg) successEl.style.display = 'none';
+  }
+
+  function showSuccess() {
+    errEl.style.display = 'none';
+    successEl.style.display = 'block';
+    setTimeout(function () { successEl.style.display = 'none'; }, 3000);
+  }
+
+  function formatNum(n) {
+    if (n === null || n === undefined) return '—';
+    return Number(n).toLocaleString('ru-RU');
+  }
+
+  function clonePromoOptions() {
+    var opts = [];
+    for (var i = 0; i < promoSelect.options.length; i++) {
+      var o = promoSelect.options[i];
+      if (o.value === '') continue;
+      opts.push({ value: o.value, text: o.textContent });
+    }
+    return opts;
+  }
+
+  function buildEditRow(r, promoOptions) {
+    var videoUrl = r.video_url || ('https://www.youtube.com/watch?v=' + r.video_id);
+    var videoTitle = (r.video_title || r.video_id).replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    var costVal = r.integration_cost != null && r.integration_cost !== '' ? r.integration_cost : '';
+    var optsHtml = promoOptions.map(function (p) {
+      var sel = p.value === String(r.ozon_action_id) ? ' selected' : '';
+      return '<option value="' + p.value + '"' + sel + '>' + p.text.replace(/</g, '&lt;') + '</option>';
+    }).join('');
+    return '<tr data-id="' + r.id + '" class="edit-row">' +
+      '<td class="video-cell"><a href="' + videoUrl + '" target="_blank" rel="noopener">' + videoTitle + '</a></td>' +
+      '<td>' + (r.channel_title || '—') + '</td>' +
+      '<td class="num">' + formatNum(r.view_count) + '</td>' +
+      '<td class="cost"><input type="number" class="edit-cost" min="0" step="1" placeholder="0" value="' + costVal + '" data-id="' + r.id + '" /></td>' +
+      '<td class="num">—</td>' +
+      '<td><select class="edit-select edit-promo" data-id="' + r.id + '" style="max-width: 180px;"><option value="">—</option>' + optsHtml + '</select> <button type="button" class="bloggers-save" data-id="' + r.id + '">Сохранить</button> <button type="button" class="bloggers-cancel" data-id="' + r.id + '">Отмена</button></td>' +
+      '</tr>';
+  }
+
+  var monthNames = ['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'];
+
+  function getSelectedPeriodQuery() {
+    if (!salesYearSelect || !salesMonthSelect) return '';
+    var y = salesYearSelect.value;
+    var m = salesMonthSelect.value;
+    if (!y || !m) return '';
+    return '?year=' + encodeURIComponent(y) + '&month=' + encodeURIComponent(m);
+  }
+
+  function normalizePromoTitle(s) {
+    if (s == null || typeof s !== 'string') return '';
+    return s.trim().replace(/\s+/g, ' ');
+  }
+
+  function renderAnalytics(salesItems, integrations, y, m) {
+    if (!analyticsContainer) return;
+    var monthName = monthNames[parseInt(m, 10) - 1] || m;
+    if (analyticsTitle) {
+      analyticsTitle.textContent = 'Аналитика за ' + monthName + ' ' + y;
+      analyticsTitle.style.display = 'block';
+    }
+
+    var byPromo = {};
+    function addPromo(title, sales, salesCount, integ) {
+      var t = normalizePromoTitle(title);
+      if (!t) return;
+      if (!byPromo[t]) byPromo[t] = { sales_amount: sales || 0, sales_count: salesCount || 0, integrations: [] };
+      if (integ) byPromo[t].integrations.push(integ);
+    }
+    (salesItems || []).forEach(function (row) {
+      var t = normalizePromoTitle(row.ozon_action_title);
+      if (t && !byPromo[t]) byPromo[t] = { sales_amount: row.sales_amount || 0, sales_count: row.sales_count || 0, integrations: [] };
+    });
+    (integrations || []).forEach(function (r) {
+      // sales_count здесь не меняем, он приходит только из salesItems
+      addPromo(r.ozon_action_title, r.sales_amount, (byPromo[normalizePromoTitle(r.ozon_action_title)] || {}).sales_count || 0, r);
+    });
+
+    var allowedBySelector = {};
+    clonePromoOptions().forEach(function (p) {
+      var t = normalizePromoTitle(p.text);
+      if (t) allowedBySelector[t] = true;
+    });
+    var promoOrder = Object.keys(byPromo)
+      .filter(function (title) { return allowedBySelector[normalizePromoTitle(title)]; })
+      .sort(function (a, b) {
+        var sa = byPromo[a].sales_amount || 0;
+        var sb = byPromo[b].sales_amount || 0;
+        if (sb !== sa) return sb - sa;
+        return a.localeCompare(b);
+      });
+
+    var html = '';
+    promoOrder.forEach(function (promoTitle) {
+      var block = byPromo[promoTitle];
+      var salesNum = block.sales_amount != null ? formatNum(block.sales_amount) : '—';
+      var avgSalesPerSale = block.sales_amount != null && block.sales_count
+        ? block.sales_amount / block.sales_count
+        : 0;
+      var deferredSum = 0;
+      var costSum = 0;
+      if (block.integrations && block.integrations.length) {
+        block.integrations.forEach(function (r) {
+          var viewsNum = r.view_count != null ? Number(r.view_count) : 0;
+          if (!Number.isFinite(viewsNum)) viewsNum = 0;
+          var deferredVal = avgSalesPerSale * 0.0001 * viewsNum;
+          if (Number.isFinite(deferredVal) && deferredVal > 0) deferredSum += deferredVal;
+          var costNum = r.integration_cost != null ? Number(r.integration_cost) : 0;
+          if (Number.isFinite(costNum) && costNum > 0) costSum += costNum;
+        });
+      }
+      var efficiency = costSum > 0 ? (block.sales_amount + deferredSum) / costSum : null;
+      var efficiencyDisplay = efficiency && Number.isFinite(efficiency) ? efficiency.toFixed(2) : '—';
+      html += '<div class="analytics-promo-section" data-promo="' + promoTitle.replace(/"/g, '&quot;') + '">';
+      html += '<div class="analytics-promo-header"><span>' + promoTitle.replace(/</g, '&lt;') + '</span><span class="analytics-promo-metrics"><span class="analytics-promo-sales">Продажи: ' + salesNum + ' ₽</span><span>Коэффициент эффективности: ' + efficiencyDisplay + '</span><button type="button" class="analytics-detail-btn" data-promo="' + promoTitle.replace(/"/g, '&quot;').replace(/</g, '&lt;') + '">Показать детализацию</button></span></div>';
+      if (!block.integrations || block.integrations.length === 0) {
+        html += '<div class="analytics-no-integrations">Нет интеграций за этот период</div>';
+      } else {
+        html += '<div class="analytics-child-table bloggers-table-wrap"><table class="bloggers-table"><thead><tr>';
+        html += '<th>Видео</th><th>Канал</th><th class="num">Просмотры</th><th class="num">Отложенные продажи, ₽</th><th class="cost">Стоимость, ₽</th><th></th></tr></thead><tbody>';
+        block.integrations.forEach(function (r) {
+          var videoLink = '<a href="' + (r.video_url || ('https://www.youtube.com/watch?v=' + r.video_id)) + '" target="_blank" rel="noopener">' + (r.video_title || r.video_id || '').replace(/</g, '&lt;') + '</a>';
+          var cost = r.integration_cost != null ? formatNum(r.integration_cost) : '—';
+          var views = r.view_count != null ? Number(r.view_count) : 0;
+          if (!Number.isFinite(views)) views = 0;
+          var deferred = avgSalesPerSale * 0.0001 * views;
+          var deferredDisplay = deferred > 0 ? formatNum(Math.round(deferred)) : '—';
+          html += '<tr data-id="' + r.id + '">' +
+            '<td class="video-cell">' + videoLink + '</td>' +
+            '<td>' + (r.channel_title || '—').replace(/</g, '&lt;') + '</td>' +
+            '<td class="num">' + formatNum(r.view_count) + '</td>' +
+            '<td class="num">' + deferredDisplay + '</td>' +
+            '<td class="cost">' + cost + '</td>' +
+            '<td><button type="button" class="bloggers-edit" data-id="' + r.id + '" title="Редактировать"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button><button type="button" class="bloggers-del" data-id="' + r.id + '" title="Удалить"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button></td></tr>';
+        });
+        html += '</tbody></table></div>';
+      }
+      html += '</div>';
+    });
+
+    if (promoOrder.length === 0) {
+      analyticsContainer.innerHTML = '<p class="bloggers-placeholder">Нет данных за выбранный период. Добавьте интеграции и/или сформируйте отчёт продаж.</p>';
+      return;
+    }
+
+    analyticsContainer.innerHTML = html;
+
+    function attachEditDel(list) {
+      if (!list || !list.length) return;
+      analyticsContainer.querySelectorAll('.bloggers-edit').forEach(function (btn) {
+        var id = btn.getAttribute('data-id');
+        var r = list.find(function (x) { return String(x.id) === id; });
+        if (!r) return;
+        btn.addEventListener('click', function () {
+          var section = btn.closest('.analytics-promo-section');
+          var tbody = section && section.querySelector('.analytics-child-table tbody');
+          if (!tbody) return;
+          var promoOptions = clonePromoOptions();
+          var temp = document.createElement('tbody');
+          temp.innerHTML = buildEditRow(r, promoOptions);
+          var newRow = temp.querySelector('tr');
+          var oldTr = btn.closest('tr');
+          if (newRow && oldTr) tbody.replaceChild(newRow, oldTr);
+          var saveBtn = newRow.querySelector('.bloggers-save');
+          var cancelBtn = newRow.querySelector('.bloggers-cancel');
+          var editPromo = newRow.querySelector('.edit-promo');
+          var editCost = newRow.querySelector('.edit-cost');
+          saveBtn.addEventListener('click', function () {
+            var actionId = editPromo.value;
+            var selectedOpt = editPromo.options[editPromo.selectedIndex];
+            var promoTitle = selectedOpt ? selectedOpt.textContent : '';
+            var cost = editCost.value === '' ? null : editCost.value;
+            fetch('/bloggers/api/integrations/' + id, {
+              method: 'PATCH',
+              headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+              body: JSON.stringify({ action_id: actionId, ozon_action_title: promoTitle, integration_cost: cost })
+            })
+              .then(function (resp) { return resp.json().then(function (data) { return { ok: resp.ok, data: data }; }); })
+              .then(function (o) {
+                if (o.ok) { showSuccess(); loadAnalytics(y, m); } else { showError(o.data && o.data.error ? o.data.error : 'Ошибка сохранения.'); }
+              });
+          });
+          cancelBtn.addEventListener('click', function () { loadAnalytics(y, m); });
+        });
+      });
+      analyticsContainer.querySelectorAll('.bloggers-del').forEach(function (btn) {
+        var id = btn.getAttribute('data-id');
+        btn.addEventListener('click', function () {
+          if (!id || !confirm('Удалить интеграцию?')) return;
+          fetch('/bloggers/api/integrations/' + id, { method: 'DELETE', headers: { 'Accept': 'application/json' } })
+            .then(function (r) { return r.json(); })
+            .then(function (o) {
+              if (o.ok) loadAnalytics(y, m);
+            });
+        });
+      });
+    }
+    attachEditDel(integrations || []);
+    attachDetailsButtons(y, m);
+  }
+
+  var detailsModal = document.getElementById('detailsModal');
+  var detailsModalTitle = document.getElementById('detailsModalTitle');
+  var detailsModalChartWrap = document.getElementById('detailsModalChartWrap');
+  var detailsModalChartEl = document.getElementById('detailsModalChart');
+  var detailsModalLoading = document.getElementById('detailsModalLoading');
+  var detailsModalEmpty = document.getElementById('detailsModalEmpty');
+  var detailsModalError = document.getElementById('detailsModalError');
+  var detailsModalClose = document.getElementById('detailsModalClose');
+  var detailsChartInstance = null;
+
+  function dayKeyFromProcessedAt(str) {
+    if (!str) return null;
+    var d = new Date(str);
+    if (isNaN(d.getTime())) return null;
+    var y = d.getFullYear();
+    var m = String(d.getMonth() + 1).padStart(2, '0');
+    var day = String(d.getDate()).padStart(2, '0');
+    return y + '-' + m + '-' + day;
+  }
+
+  function aggregateSalesByDay(items, year, month) {
+    var byDay = {};
+    items.forEach(function (row) {
+      var key = dayKeyFromProcessedAt(row.processed_at);
+      if (!key) return;
+      var price = typeof row.price === 'number' ? row.price : parseFloat(row.price);
+      if (!Number.isFinite(price)) return;
+      byDay[key] = (byDay[key] || 0) + price;
+    });
+    var y = parseInt(year, 10);
+    var m = parseInt(month, 10);
+    if (!y || !m || m < 1 || m > 12) {
+      var keys = Object.keys(byDay).sort();
+      return { labels: keys, values: keys.map(function (k) { return byDay[k]; }) };
+    }
+    var labels = [];
+    var values = [];
+    var daysInMonth = new Date(y, m, 0).getDate();
+    var mStr = String(m).padStart(2, '0');
+    for (var d = 1; d <= daysInMonth; d++) {
+      var dayStr = String(d).padStart(2, '0');
+      var key = y + '-' + mStr + '-' + dayStr;
+      labels.push(key);
+      values.push(byDay[key] || 0);
+    }
+    return { labels: labels, values: values };
+  }
+
+  function formatDayLabel(isoDate) {
+    var parts = isoDate.split('-');
+    if (parts.length !== 3) return isoDate;
+    var d = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
+    return d.toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' });
+  }
+
+  function renderDetailsChart(labels, values) {
+    if (detailsChartInstance) {
+      detailsChartInstance.destroy();
+      detailsChartInstance = null;
+    }
+    if (!detailsModalChartEl || typeof Chart === 'undefined') return;
+    var isDark = document.documentElement.classList.contains('dark');
+    var gridColor = isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)';
+    var textColor = isDark ? '#e5e7eb' : '#374151';
+    detailsChartInstance = new Chart(detailsModalChartEl, {
+      type: 'line',
+      data: {
+        labels: labels.map(formatDayLabel),
+        datasets: [{
+          label: 'Продажи, ₽',
+          data: values,
+          borderColor: 'rgb(37, 99, 235)',
+          backgroundColor: 'rgba(37, 99, 235, 0.1)',
+          fill: true,
+          tension: 0.2,
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false }
+        },
+        scales: {
+          x: {
+            grid: { color: gridColor },
+            ticks: { color: textColor, maxRotation: 45 }
+          },
+          y: {
+            beginAtZero: true,
+            grid: { color: gridColor },
+            ticks: { color: textColor, callback: function (v) { return typeof v === 'number' ? v.toLocaleString('ru-RU') : v; } }
+          }
+        }
+      }
+    });
+  }
+
+  function openDetailsModal(promoTitle, y, m) {
+    if (!detailsModal || !detailsModalTitle) return;
+    detailsModalTitle.textContent = 'Детализация покупок — ' + promoTitle;
+    if (detailsModalChartWrap) detailsModalChartWrap.style.display = 'none';
+    if (detailsModalLoading) detailsModalLoading.style.display = 'block';
+    if (detailsModalEmpty) detailsModalEmpty.style.display = 'none';
+    if (detailsModalError) detailsModalError.style.display = 'none';
+    if (detailsChartInstance) {
+      detailsChartInstance.destroy();
+      detailsChartInstance = null;
+    }
+    detailsModal.classList.add('visible');
+
+    fetch('/bloggers/api/sales/details?year=' + encodeURIComponent(y) + '&month=' + encodeURIComponent(m) + '&promo=' + encodeURIComponent(promoTitle), { method: 'GET', headers: { 'Accept': 'application/json' } })
+      .then(function (r) { return r.json(); })
+      .then(function (o) {
+        var items = o.items || [];
+        if (detailsModalLoading) detailsModalLoading.style.display = 'none';
+        if (items.length === 0) {
+          if (detailsModalEmpty) detailsModalEmpty.style.display = 'block';
+          if (detailsModalError) detailsModalError.style.display = 'none';
+        } else {
+          if (detailsModalEmpty) detailsModalEmpty.style.display = 'none';
+          if (detailsModalError) detailsModalError.style.display = 'none';
+          var aggregated = aggregateSalesByDay(items, y, m);
+          if (aggregated.labels.length === 0) {
+            if (detailsModalEmpty) { detailsModalEmpty.textContent = 'Нет записей за выбранный период.'; detailsModalEmpty.style.display = 'block'; }
+          } else {
+            if (detailsModalChartWrap) detailsModalChartWrap.style.display = 'block';
+            renderDetailsChart(aggregated.labels, aggregated.values);
+          }
+        }
+      })
+      .catch(function () {
+        if (detailsModalLoading) detailsModalLoading.style.display = 'none';
+        if (detailsModalEmpty) detailsModalEmpty.style.display = 'none';
+        if (detailsModalError) detailsModalError.style.display = 'block';
+        if (detailsModalChartWrap) detailsModalChartWrap.style.display = 'none';
+      });
+  }
+
+  function closeDetailsModal() {
+    if (detailsChartInstance) {
+      detailsChartInstance.destroy();
+      detailsChartInstance = null;
+    }
+    if (detailsModal) detailsModal.classList.remove('visible');
+  }
+
+  function attachDetailsButtons(y, m) {
+    if (!analyticsContainer || !y || !m) return;
+    analyticsContainer.querySelectorAll('.analytics-detail-btn').forEach(function (btn) {
+      var promoTitle = btn.getAttribute('data-promo') || '';
+      btn.addEventListener('click', function () {
+        openDetailsModal(promoTitle, y, m);
+      });
+    });
+  }
+
+  if (detailsModalClose) detailsModalClose.addEventListener('click', closeDetailsModal);
+  if (detailsModal) detailsModal.addEventListener('click', function (e) {
+    if (e.target === detailsModal) closeDetailsModal();
+  });
+
+  function loadAnalytics(overrideYear, overrideMonth) {
+    var y = overrideYear != null ? String(overrideYear) : (salesYearSelect && salesYearSelect.value);
+    var m = overrideMonth != null ? String(overrideMonth) : (salesMonthSelect && salesMonthSelect.value);
+    if (!y || !m) {
+      if (analyticsContainer) {
+        analyticsContainer.innerHTML = '<p class="bloggers-placeholder">Выберите период — появится таблица продаж по акциям с привязанными интеграциями.</p>';
+      }
+      if (analyticsTitle) analyticsTitle.style.display = 'none';
+      return;
+    }
+    if (analyticsContainer) {
+      analyticsContainer.innerHTML = '<p class="bloggers-placeholder">Загрузка…</p>';
+    }
+    if (analyticsTitle) {
+      analyticsTitle.textContent = 'Аналитика за период';
+      analyticsTitle.style.display = 'block';
+    }
+
+    var salesPromise = fetch('/bloggers/api/sales/by-promo?year=' + encodeURIComponent(y) + '&month=' + encodeURIComponent(m), { method: 'GET', headers: { 'Accept': 'application/json' } }).then(function (r) { return r.json(); });
+    var integrationsPromise = fetch('/bloggers/api/integrations?year=' + encodeURIComponent(y) + '&month=' + encodeURIComponent(m) + '&refresh_views=1', { method: 'GET', headers: { 'Accept': 'application/json' } }).then(function (r) { return r.json(); });
+
+    Promise.all([salesPromise, integrationsPromise]).then(function (results) {
+      var salesData = results[0] || {};
+      var integrationsData = results[1] || {};
+      var salesItems = salesData.items || [];
+      var integrations = integrationsData.integrations || [];
+      renderAnalytics(salesItems, integrations, y, m);
+    }).catch(function () {
+      if (analyticsContainer) analyticsContainer.innerHTML = '<p class="bloggers-placeholder" style="color: #dc2626;">Ошибка загрузки.</p>';
+    });
+  }
+
+  // Init sales period selectors (current month by default)
+  (function initSalesSelectors() {
+    if (!salesMonthSelect || !salesYearSelect) return;
+    var now = new Date();
+    var currentYear = now.getFullYear();
+    var currentMonth = now.getMonth() + 1;
+    var monthNames = ['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'];
+
+    if (salesMonthSelect.options.length === 0) {
+      for (var i = 1; i <= 12; i++) {
+        var opt = document.createElement('option');
+        opt.value = String(i);
+        opt.textContent = monthNames[i - 1];
+        salesMonthSelect.appendChild(opt);
+      }
+    }
+
+    if (salesYearSelect.options.length === 0) {
+      for (var y = currentYear - 1; y <= currentYear + 1; y++) {
+        var optY = document.createElement('option');
+        optY.value = String(y);
+        optY.textContent = String(y);
+        salesYearSelect.appendChild(optY);
+      }
+    }
+
+    salesMonthSelect.value = String(currentMonth);
+    salesYearSelect.value = String(currentYear);
+  })();
+
+  function onPeriodChange() {
+    loadAnalytics();
+  }
+  if (salesYearSelect) salesYearSelect.addEventListener('change', onPeriodChange);
+  if (salesMonthSelect) salesMonthSelect.addEventListener('change', onPeriodChange);
+
+  // Load OZON promos on page load
+  fetch('/bloggers/api/ozon-promos', { method: 'GET', headers: { 'Accept': 'application/json' } })
+    .then(function (r) { return r.json(); })
+    .then(function (o) {
+      promoLoadError.style.display = 'none';
+      promoLoadError.textContent = '';
+      (o.actions || []).forEach(function (a) {
+        var opt = document.createElement('option');
+        opt.value = a.action_id;
+        opt.textContent = a.title;
+        promoSelect.appendChild(opt);
+      });
+      if ((o.actions || []).length === 0 && o.error) {
+        promoLoadError.textContent = o.error;
+        promoLoadError.style.display = 'block';
+      }
+    })
+    .catch(function () {
+      promoLoadError.textContent = 'Не удалось загрузить список промокодов.';
+      promoLoadError.style.display = 'block';
+    });
+
+  loadAnalytics();
+
+  if (refreshSalesBtn) {
+    refreshSalesBtn.addEventListener('click', function () {
+      if (!salesYearSelect || !salesMonthSelect) return;
+      var year = salesYearSelect.value;
+      var month = salesMonthSelect.value;
+      if (!year || !month) {
+        showError('Выберите месяц и год для отчёта.');
+        return;
+      }
+      showError('');
+      refreshSalesBtn.disabled = true;
+      var originalText = refreshSalesBtn.textContent;
+      refreshSalesBtn.textContent = 'Формирование…';
+      setReportStatus('Подключение…', true);
+
+      var url = '/bloggers/api/sales/report/stream?year=' + encodeURIComponent(year) + '&month=' + encodeURIComponent(month);
+      var es = new EventSource(url);
+      var streamEnded = false;
+
+      function finishStream() {
+        if (streamEnded) return;
+        streamEnded = true;
+        es.close();
+        setReportStatus('', false);
+        refreshSalesBtn.disabled = false;
+        refreshSalesBtn.textContent = originalText;
+      }
+
+      es.addEventListener('status', function (e) {
+        var data;
+        try { data = JSON.parse(e.data); } catch (err) { return; }
+        setReportStatus(data.message || 'Формирование отчёта…', true);
+      });
+
+      es.addEventListener('done', function (e) {
+        var data;
+        try { data = e.data ? JSON.parse(e.data) : {}; } catch (err) { data = {}; }
+        var monthKey = data && data.month_key;
+        if (monthKey && typeof monthKey === 'string') {
+          var parts = monthKey.split('-');
+          if (parts.length >= 2) {
+            var y = parts[0];
+            var m = String(parseInt(parts[1], 10) || parts[1]);
+            if (salesYearSelect) salesYearSelect.value = y;
+            if (salesMonthSelect) salesMonthSelect.value = m;
+            loadAnalytics(y, m);
+          } else {
+            loadAnalytics();
+          }
+        } else {
+          loadAnalytics();
+        }
+        finishStream();
+        showSuccess();
+      });
+
+      es.addEventListener('error', function (e) {
+        var data;
+        try {
+          if (e.data) data = JSON.parse(e.data);
+        } catch (err) {}
+        finishStream();
+        showError(data && data.error ? data.error : 'Ошибка формирования отчёта продаж.');
+      });
+
+      es.onerror = function () {
+        if (streamEnded || es.readyState === EventSource.CLOSED) return;
+        finishStream();
+        showError('Соединение прервано. Проверьте сеть и попробуйте снова.');
+      };
+    });
+  }
+
+  form.addEventListener('submit', function (e) {
+    e.preventDefault();
+    var url = (input.value || '').trim();
+    var actionId = promoSelect.value;
+    var selectedOption = promoSelect.options[promoSelect.selectedIndex];
+    var promoTitle = selectedOption ? selectedOption.textContent : '';
+    var cost = costInput.value === '' ? null : costInput.value;
+
+    if (!url) {
+      showError('Введите ссылку на ролик YouTube.');
+      return;
+    }
+    if (!actionId) {
+      showError('Выберите промокод OZON.');
+      return;
+    }
+    showError('');
+    submitBtn.disabled = true;
+    submitBtn.textContent = 'Добавление…';
+
+    fetch('/bloggers/api/integrations', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+      body: JSON.stringify({ url: url, action_id: actionId, ozon_action_title: promoTitle, integration_cost: cost })
+    })
+      .then(function (r) { return r.json().then(function (data) { return { ok: r.ok, status: r.status, data: data }; }); })
+      .then(function (o) {
+        if (o.ok) {
+          showSuccess();
+          input.value = '';
+          costInput.value = '';
+          loadAnalytics();
+        } else {
+          showError(o.data && o.data.error ? o.data.error : 'Не удалось добавить интеграцию.');
+        }
+      })
+      .catch(function () {
+        showError('Ошибка сети. Попробуйте позже.');
+      })
+      .finally(function () {
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Добавить интеграцию';
+      });
+  });
+})();
+</script>
+` }) %>

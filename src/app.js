@@ -11,6 +11,8 @@ const ozonRoutes = require('./routes/ozon');
 const promoRoutes = require('./routes/promo');
 const posRoutes = require('./routes/pos');
 const pricecheckRoutes = require('./routes/pricecheck');
+const { createPricecheckRouter } = require('./routes/pricecheck');
+const bloggersRoutes = require('./routes/bloggers');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -36,7 +38,7 @@ app.use(
     resave: false,
     saveUninitialized: false,
     cookie: {
-      secure: true,
+      secure: process.env.NODE_ENV === 'production',
       httpOnly: true,
       sameSite: 'lax',
       maxAge: 24 * 60 * 60 * 1000, // 24 hours
@@ -53,6 +55,12 @@ app.use((req, res, next) => {
 
 // Pricecheck before static so /pricecheck uses layout+iframe (static would serve public/pricecheck/index.html)
 app.use('/pricecheck', pricecheckRoutes);
+app.use('/pricecheck-dev', createPricecheckRouter({
+  dataDir: 'pricecheck-dev',
+  basePath: '/pricecheck-dev',
+  title: 'Регулирование цен DEV',
+  adminOnly: true
+}));
 app.use(express.static(path.join(__dirname, 'public')));
 
 // Routes
@@ -62,6 +70,7 @@ app.use('/admin/settings', settingsRoutes);
 app.use('/ozon', ozonRoutes);
 app.use('/promo', promoRoutes);
 app.use('/pos', posRoutes);
+app.use('/bloggers', bloggersRoutes);
 app.use('/', dashboardRoutes);
 
 // 404 handler

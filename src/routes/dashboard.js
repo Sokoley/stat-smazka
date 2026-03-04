@@ -15,7 +15,6 @@ router.get('/', requireAuth, (req, res) => {
             </svg>
           </div>
           <h2 class="text-xl font-semibold text-gray-900 dark:text-white mb-2">Дашборд</h2>
-          <p class="text-gray-500 dark:text-gray-400">Данные появятся после подключения к маркетплейсам</p>
         </div>
       </div>
     `,

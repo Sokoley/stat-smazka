@@ -1,64 +1,75 @@
 const express = require('express');
 const fs = require('fs').promises;
 const path = require('path');
+const { requireAdmin } = require('../middleware/auth');
 
-const router = express.Router();
-
-// Directory for price check data
-const DATA_DIR = path.join(__dirname, '../../data/pricecheck');
 const PUBLIC_DIR = path.join(__dirname, '../public/pricecheck');
 
-// Ensure data directory exists
-(async () => {
-  try {
-    await fs.mkdir(DATA_DIR, { recursive: true });
-    console.log('📁 Price check data directory ready:', DATA_DIR);
-  } catch (error) {
-    console.error('Error creating pricecheck data directory:', error);
-  }
-})();
+/**
+ * Creates pricecheck router with configurable data directory and optional admin-only access.
+ * @param {Object} options
+ * @param {string} options.dataDir - Subdirectory name under data/ (e.g. 'pricecheck' or 'pricecheck-dev')
+ * @param {string} options.basePath - Mount path (e.g. '/pricecheck' or '/pricecheck-dev')
+ * @param {string} options.title - Page title
+ * @param {boolean} [options.adminOnly] - If true, all routes require admin
+ */
+function createPricecheckRouter(options) {
+  const { dataDir, basePath, title = 'Регулирование цен', adminOnly = false } = options;
+  const DATA_DIR = path.join(__dirname, '../../data', dataDir);
+  const router = express.Router();
+  const adminMiddleware = adminOnly ? requireAdmin : (req, res, next) => next();
 
-// GET /pricecheck - Main page with sidebar (layout + iframe)
-router.get('/', (req, res) => {
-  res.render('layouts/main', {
-    title: 'Регулирование цен',
-    body: `
+  // Ensure data directory exists
+  (async () => {
+    try {
+      await fs.mkdir(DATA_DIR, { recursive: true });
+      console.log(`📁 Price check data directory ready [${dataDir}]:`, DATA_DIR);
+    } catch (error) {
+      console.error(`Error creating ${dataDir} data directory:`, error);
+    }
+  })();
+
+  // GET - Main page with sidebar (layout + iframe)
+  router.get('/', adminMiddleware, (req, res) => {
+    res.render('layouts/main', {
+      title,
+      body: `
       <div class="h-full flex flex-col min-h-0 -m-6">
-        <iframe src="/pricecheck/frame" class="w-full flex-1 border-0 rounded-none" style="min-height: calc(100vh - 6rem);" title="Регулирование цен"></iframe>
+        <iframe src="${basePath}/frame" class="w-full flex-1 border-0 rounded-none" style="min-height: calc(100vh - 6rem);" title="${title}"></iframe>
       </div>
     `
+    });
   });
-});
 
-// GET /pricecheck/frame - Standalone app content (for iframe inside layout)
-router.get('/frame', (req, res) => {
-  res.sendFile(path.join(PUBLIC_DIR, 'index.html'));
-});
-
-// Serve compiled JS file
-router.get('/app/index.js', (req, res) => {
-  res.type('application/javascript');
-  res.sendFile(path.join(PUBLIC_DIR, 'index.js'));
-});
-
-// Serve TSX file with correct MIME type (fallback for development)
-router.get('/app/index.tsx', (req, res) => {
-  res.type('application/javascript');
-  res.sendFile(path.join(PUBLIC_DIR, 'index.tsx'));
-});
-
-// Health check
-router.get('/api/health', (req, res) => {
-  res.json({
-    status: 'ok',
-    timestamp: new Date().toISOString(),
-    info: 'Ozon Card Price Parser API',
-    dataDir: DATA_DIR
+  // GET /frame - Standalone app content (for iframe inside layout)
+  router.get('/frame', adminMiddleware, (req, res) => {
+    res.sendFile(path.join(PUBLIC_DIR, 'index.html'));
   });
-});
 
-// Get list of data files
-router.get('/api/data/files', async (req, res) => {
+  // Serve compiled JS file
+  router.get('/app/index.js', adminMiddleware, (req, res) => {
+    res.type('application/javascript');
+    res.sendFile(path.join(PUBLIC_DIR, 'index.js'));
+  });
+
+  // Serve TSX file with correct MIME type (fallback for development)
+  router.get('/app/index.tsx', adminMiddleware, (req, res) => {
+    res.type('application/javascript');
+    res.sendFile(path.join(PUBLIC_DIR, 'index.tsx'));
+  });
+
+  // Health check
+  router.get('/api/health', adminMiddleware, async (req, res) => {
+    res.json({
+      status: 'ok',
+      timestamp: new Date().toISOString(),
+      info: 'Ozon Card Price Parser API',
+      dataDir: DATA_DIR
+    });
+  });
+
+  // Get list of data files
+  router.get('/api/data/files', adminMiddleware, async (req, res) => {
   try {
     const files = await fs.readdir(DATA_DIR);
     const jsonFiles = files.filter(file => file.endsWith('.json'));
@@ -102,8 +113,8 @@ router.get('/api/data/files', async (req, res) => {
   }
 });
 
-// Load data file
-router.get('/api/data/load/:filename', async (req, res) => {
+  // Load data file
+  router.get('/api/data/load/:filename', adminMiddleware, async (req, res) => {
   try {
     let filename = req.params.filename;
     if (!filename.endsWith('.json')) {
@@ -149,8 +160,8 @@ router.get('/api/data/load/:filename', async (req, res) => {
   }
 });
 
-// Save data file
-router.post('/api/data/save', async (req, res) => {
+  // Save data file
+  router.post('/api/data/save', adminMiddleware, async (req, res) => {
   const { filename, data } = req.body;
 
   if (!filename || !data) {
@@ -194,8 +205,8 @@ router.post('/api/data/save', async (req, res) => {
   }
 });
 
-// Delete data file
-router.delete('/api/data/delete/:filename', async (req, res) => {
+  // Delete data file
+  router.delete('/api/data/delete/:filename', adminMiddleware, async (req, res) => {
   try {
     let filename = req.params.filename;
     if (!filename.endsWith('.json')) {
@@ -234,8 +245,8 @@ router.delete('/api/data/delete/:filename', async (req, res) => {
   }
 });
 
-// Create backup
-router.post('/api/data/backup', async (req, res) => {
+  // Create backup
+  router.post('/api/data/backup', adminMiddleware, async (req, res) => {
   try {
     const backupDir = path.join(DATA_DIR, 'backups');
     await fs.mkdir(backupDir, { recursive: true });
@@ -274,8 +285,8 @@ router.post('/api/data/backup', async (req, res) => {
   }
 });
 
-// Get all data
-router.get('/api/data/all', async (req, res) => {
+  // Get all data
+  router.get('/api/data/all', adminMiddleware, async (req, res) => {
   try {
     const files = await fs.readdir(DATA_DIR);
     const jsonFiles = files.filter(file => file.endsWith('.json'));
@@ -299,71 +310,71 @@ router.get('/api/data/all', async (req, res) => {
   }
 });
 
-// Parse Ozon card prices via Selenium (Ozon blocks plain HTTP requests)
-const OZON_UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
+  // Parse Ozon card prices via Selenium (Ozon blocks plain HTTP requests)
+  const OZON_UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
 
-// Proxy list and settings
-// В Docker файл монтируется в /app/proxys.txt, локально - в корне проекта
-const PROXY_FILE = process.env.NODE_ENV === 'production'
-  ? '/app/proxys.txt'
-  : path.join(__dirname, '../../proxys.txt');
-let proxyList = [];
-let proxyIndex = 0;
-let proxyEnabled = false;
+  // Proxy list and settings
+  // В Docker файл монтируется в /app/proxys.txt, локально - в корне проекта
+  const PROXY_FILE = process.env.NODE_ENV === 'production'
+    ? '/app/proxys.txt'
+    : path.join(__dirname, '../../proxys.txt');
+  let proxyList = [];
+  let proxyIndex = 0;
+  let proxyEnabled = false;
 
-// Load proxies from file
-const loadProxies = async () => {
-  try {
-    const content = await fs.readFile(PROXY_FILE, 'utf-8');
-    const lines = content.split('\n').filter(line => line.trim());
-    proxyList = lines.map(line => {
-      const parts = line.trim().split(':');
-      return {
-        host: parts[0],
-        port: parts[1],
-        username: parts[2] || '',
-        password: parts[3] || ''
-      };
+  // Load proxies from file
+  const loadProxies = async () => {
+    try {
+      const content = await fs.readFile(PROXY_FILE, 'utf-8');
+      const lines = content.split('\n').filter(line => line.trim());
+      proxyList = lines.map(line => {
+        const parts = line.trim().split(':');
+        return {
+          host: parts[0],
+          port: parts[1],
+          username: parts[2] || '',
+          password: parts[3] || ''
+        };
+      });
+      console.log(`📋 Загружено ${proxyList.length} прокси из файла`);
+      return proxyList.length;
+    } catch (error) {
+      console.log(`⚠️ Файл прокси не найден: ${PROXY_FILE}`);
+      proxyList = [];
+      return 0;
+    }
+  };
+
+  // Get next proxy (round-robin)
+  const getNextProxy = () => {
+    if (proxyList.length === 0) return null;
+    const proxy = proxyList[proxyIndex];
+    proxyIndex = (proxyIndex + 1) % proxyList.length;
+    return proxy;
+  };
+
+  // Get random proxy
+  const getRandomProxy = () => {
+    if (proxyList.length === 0) return null;
+    const index = Math.floor(Math.random() * proxyList.length);
+    return proxyList[index];
+  };
+
+  // Load proxies on startup
+  loadProxies();
+
+  // API to get proxy settings
+  router.get('/api/proxy', adminMiddleware, async (req, res) => {
+    res.json({
+      enabled: proxyEnabled,
+      totalProxies: proxyList.length,
+      currentIndex: proxyIndex,
+      sample: proxyList.length > 0 ? `${proxyList[0].host}:${proxyList[0].port}` : null
     });
-    console.log(`📋 Загружено ${proxyList.length} прокси из файла`);
-    return proxyList.length;
-  } catch (error) {
-    console.log(`⚠️ Файл прокси не найден: ${PROXY_FILE}`);
-    proxyList = [];
-    return 0;
-  }
-};
-
-// Get next proxy (round-robin)
-const getNextProxy = () => {
-  if (proxyList.length === 0) return null;
-  const proxy = proxyList[proxyIndex];
-  proxyIndex = (proxyIndex + 1) % proxyList.length;
-  return proxy;
-};
-
-// Get random proxy
-const getRandomProxy = () => {
-  if (proxyList.length === 0) return null;
-  const index = Math.floor(Math.random() * proxyList.length);
-  return proxyList[index];
-};
-
-// Load proxies on startup
-loadProxies();
-
-// API to get proxy settings
-router.get('/api/proxy', async (req, res) => {
-  res.json({
-    enabled: proxyEnabled,
-    totalProxies: proxyList.length,
-    currentIndex: proxyIndex,
-    sample: proxyList.length > 0 ? `${proxyList[0].host}:${proxyList[0].port}` : null
   });
-});
 
-// API to reload proxies from file
-router.post('/api/proxy/reload', async (req, res) => {
+  // API to reload proxies from file
+  router.post('/api/proxy/reload', adminMiddleware, async (req, res) => {
   const count = await loadProxies();
   res.json({
     success: true,
@@ -371,8 +382,8 @@ router.post('/api/proxy/reload', async (req, res) => {
   });
 });
 
-// API to enable/disable proxy
-router.post('/api/proxy', async (req, res) => {
+  // API to enable/disable proxy
+  router.post('/api/proxy', adminMiddleware, async (req, res) => {
   const { enabled } = req.body;
   proxyEnabled = enabled === true;
 
@@ -390,8 +401,8 @@ router.post('/api/proxy', async (req, res) => {
   });
 });
 
-// API to test proxy - check IP through proxy
-router.get('/api/proxy/test', async (req, res) => {
+  // API to test proxy - check IP through proxy
+  router.get('/api/proxy/test', adminMiddleware, async (req, res) => {
   if (proxyList.length === 0) {
     return res.json({ success: false, error: 'Нет прокси в списке' });
   }
@@ -474,16 +485,15 @@ router.get('/api/proxy/test', async (req, res) => {
       error: error.message
     });
   }
-});
+  });
 
-// ============ LOCAL PARSER API ============
-// Очередь заданий для локального парсера
-let parserQueue = [];
-let parserResults = {};
-let parserTaskId = null;
+  // ============ LOCAL PARSER API ============
+  let parserQueue = [];
+  let parserResults = {};
+  let parserTaskId = null;
 
-// API: получить задание для локального парсера
-router.get('/api/parser/task', (req, res) => {
+  // API: получить задание для локального парсера
+  router.get('/api/parser/task', adminMiddleware, (req, res) => {
   if (parserQueue.length > 0) {
     const task = {
       id: parserTaskId,
@@ -496,8 +506,8 @@ router.get('/api/parser/task', (req, res) => {
   }
 });
 
-// API: получить результаты от локального парсера
-router.post('/api/parser/results', (req, res) => {
+  // API: получить результаты от локального парсера
+  router.post('/api/parser/results', adminMiddleware, (req, res) => {
   const { results } = req.body;
 
   if (!results || !Array.isArray(results)) {
@@ -525,8 +535,8 @@ router.post('/api/parser/results', (req, res) => {
   res.json({ success: true, received: results.length });
 });
 
-// API: статус локального парсера
-router.get('/api/parser/status', (req, res) => {
+  // API: статус локального парсера
+  router.get('/api/parser/status', adminMiddleware, (req, res) => {
   res.json({
     queueLength: parserQueue.length,
     taskId: parserTaskId,
@@ -534,8 +544,8 @@ router.get('/api/parser/status', (req, res) => {
   });
 });
 
-// API: добавить задание для локального парсера (вызывается из UI)
-router.post('/api/parse-local', async (req, res) => {
+  // API: добавить задание для локального парсера (вызывается из UI)
+  router.post('/api/parse-local', adminMiddleware, async (req, res) => {
   const { skus } = req.body;
 
   if (!skus || !Array.isArray(skus) || skus.length === 0) {
@@ -603,9 +613,9 @@ router.post('/api/parse-local', async (req, res) => {
     timestamp: new Date().toISOString()
   });
 });
-// ============ END LOCAL PARSER API ============
+  // ============ END LOCAL PARSER API ============
 
-router.post('/api/parse-prices', async (req, res) => {
+  router.post('/api/parse-prices', adminMiddleware, async (req, res) => {
   const { skus } = req.body;
 
   if (!skus || !Array.isArray(skus) || skus.length === 0) {
@@ -852,8 +862,8 @@ router.post('/api/parse-prices', async (req, res) => {
   }
 });
 
-// Helper function to extract Ozon Card price from JSON
-function extractOzonCardPrice(jsonText) {
+  // Helper function to extract Ozon Card price from JSON
+  function extractOzonCardPrice(jsonText) {
   try {
     const exactPattern = /"cardPrice"\s*:\s*"([^"]+)"\s*(?:,|})/;
     const exactMatch = jsonText.match(exactPattern);
@@ -909,66 +919,53 @@ function extractOzonCardPrice(jsonText) {
     console.error('💥 Error analyzing JSON:', error.message);
     return null;
   }
-}
-
-function findCardPriceInObject(obj, depth = 0) {
-  if (depth > 5) return null;
-  if (!obj || typeof obj !== 'object') return null;
-
-  if (obj.cardPrice && typeof obj.cardPrice === 'string') {
-    return obj.cardPrice;
   }
 
-  if (obj.ozonCardPrice && typeof obj.ozonCardPrice === 'string') {
-    return obj.ozonCardPrice;
-  }
-
-  if (obj.widgetStates && typeof obj.widgetStates === 'object') {
-    for (const key in obj.widgetStates) {
-      try {
-        if (typeof obj.widgetStates[key] === 'string') {
-          try {
-            const stateData = JSON.parse(obj.widgetStates[key]);
-            const price = findCardPriceInObject(stateData, depth + 1);
+  function findCardPriceInObject(obj, depth = 0) {
+    if (depth > 5) return null;
+    if (!obj || typeof obj !== 'object') return null;
+    if (obj.cardPrice && typeof obj.cardPrice === 'string') return obj.cardPrice;
+    if (obj.ozonCardPrice && typeof obj.ozonCardPrice === 'string') return obj.ozonCardPrice;
+    if (obj.widgetStates && typeof obj.widgetStates === 'object') {
+      for (const key in obj.widgetStates) {
+        try {
+          if (typeof obj.widgetStates[key] === 'string') {
+            try {
+              const stateData = JSON.parse(obj.widgetStates[key]);
+              const price = findCardPriceInObject(stateData, depth + 1);
+              if (price) return price;
+            } catch (e) {}
+          } else if (typeof obj.widgetStates[key] === 'object') {
+            const price = findCardPriceInObject(obj.widgetStates[key], depth + 1);
             if (price) return price;
-          } catch (e) {
           }
-        } else if (typeof obj.widgetStates[key] === 'object') {
-          const price = findCardPriceInObject(obj.widgetStates[key], depth + 1);
-          if (price) return price;
-        }
-      } catch (e) {
+        } catch (e) {}
       }
     }
-  }
-
-  for (const key in obj) {
-    if (key !== 'widgetStates' && typeof obj[key] === 'object') {
-      const price = findCardPriceInObject(obj[key], depth + 1);
-      if (price) return price;
+    for (const key in obj) {
+      if (key !== 'widgetStates' && typeof obj[key] === 'object') {
+        const price = findCardPriceInObject(obj[key], depth + 1);
+        if (price) return price;
+      }
     }
+    return null;
   }
 
-  return null;
+  function isValidPrice(price) {
+    if (!price || typeof price !== 'string') return false;
+    const trimmed = price.trim();
+    if (!trimmed.includes('₽')) return false;
+    if (!/\d/.test(trimmed)) return false;
+    if (trimmed.length > 30) return false;
+    return true;
+  }
+
+  return router;
 }
 
-function isValidPrice(price) {
-  if (!price || typeof price !== 'string') return false;
-
-  const trimmed = price.trim();
-
-  if (!trimmed.includes('₽')) {
-    return false;
-  }
-
-  if (!/\d/.test(trimmed)) {
-    return false;
-  }
-
-  if (trimmed.length > 30) {
-    return false;
-  }
-  return true;
-}
-
-module.exports = router;
+module.exports = createPricecheckRouter({
+  dataDir: 'pricecheck',
+  basePath: '/pricecheck',
+  title: 'Регулирование цен'
+});
+module.exports.createPricecheckRouter = createPricecheckRouter;
