@@ -6,6 +6,18 @@ const db = require('../db/database');
 const router = express.Router();
 const OZON_API_URL = 'https://api-seller.ozon.ru';
 
+function getYoutubeApiKey() {
+  try {
+    const row = db.prepare('SELECT api_key FROM api_settings WHERE service = ? AND is_active = 1').get('youtube');
+    if (row && row.api_key && String(row.api_key).trim() !== '') {
+      return String(row.api_key).trim();
+    }
+  } catch (e) {
+    console.error('youtube api_settings lookup error:', e.message || e);
+  }
+  return null;
+}
+
 function getMonthKey(year, month) {
   return String(year) + '-' + String(month).padStart(2, '0');
 }
@@ -355,7 +367,7 @@ router.get('/api/ozon-promos', requireAuth, async (req, res) => {
 
 /**
  * GET /bloggers/api/video-stats?url=... - Fetch YouTube video statistics
- * Requires YOUTUBE_API_KEY in environment.
+ * YouTube API ключ настраивается в разделе Интеграции (api_settings.service = 'youtube').
  */
 router.get('/api/video-stats', requireAuth, async (req, res) => {
   const url = req.query.url || '';
@@ -367,10 +379,10 @@ router.get('/api/video-stats', requireAuth, async (req, res) => {
     });
   }
 
-  const apiKey = process.env.YOUTUBE_API_KEY;
+  const apiKey = getYoutubeApiKey();
   if (!apiKey) {
     return res.status(503).json({
-      error: 'YouTube API не настроен. Добавьте переменную окружения YOUTUBE_API_KEY (ключ из Google Cloud Console, YouTube Data API v3).',
+      error: 'YouTube API не настроен. Укажите ключ в разделе Интеграции.',
     });
   }
 
@@ -671,7 +683,7 @@ router.get('/api/integrations', requireAuth, async (req, res) => {
       }));
 
       if (refresh_views === '1' || refresh_views === 'true') {
-        const apiKey = process.env.YOUTUBE_API_KEY;
+        const apiKey = getYoutubeApiKey();
         if (apiKey) {
           for (const row of rows) {
             if (!row.video_id) continue;
@@ -742,9 +754,9 @@ router.post('/api/integrations', requireAuth, async (req, res) => {
     return res.status(400).json({ error: 'Укажите промокод OZON.' });
   }
 
-  const apiKey = process.env.YOUTUBE_API_KEY;
+  const apiKey = getYoutubeApiKey();
   if (!apiKey) {
-    return res.status(503).json({ error: 'YouTube API не настроен (YOUTUBE_API_KEY).' });
+    return res.status(503).json({ error: 'YouTube API не настроен. Укажите ключ в разделе Интеграции.' });
   }
 
   try {

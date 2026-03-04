@@ -108,6 +108,12 @@ function initDatabase() {
     db.prepare('INSERT INTO api_settings (service, api_key) VALUES (?, ?)').run('deepseek', '');
   }
 
+  // Create default YouTube settings if not exists
+  const youtube = db.prepare('SELECT id FROM api_settings WHERE service = ?').get('youtube');
+  if (!youtube) {
+    db.prepare('INSERT INTO api_settings (service, api_key) VALUES (?, ?)').run('youtube', '');
+  }
+
   // Create default admin if not exists
   const admin = db.prepare('SELECT id FROM users WHERE email = ?').get('admin@example.com');
   if (!admin) {

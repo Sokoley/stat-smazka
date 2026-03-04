@@ -108,5 +108,23 @@
         </div>
       </form>
     </div>
+
+    <!-- YouTube API Settings -->
+    <div class="card mt-6">
+      <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">YouTube API</h3>
+      <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">API ключ для получения статистики по роликам в разделе «Блогеры»</p>
+
+      <form action="/admin/settings/ozon/youtube" method="POST" class="space-y-4">
+        <div>
+          <label for="youtube_api_key" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">API Key</label>
+          <input type="password" id="youtube_api_key" name="api_key" class="input-field" placeholder="AIza..." value="${youtubeApiKey || ''}">
+          <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">Создайте ключ в Google Cloud Console для YouTube Data API v3 и вставьте его сюда.</p>
+        </div>
+
+        <div class="pt-2">
+          <button type="submit" class="btn-primary">Сохранить ключ</button>
+        </div>
+      </form>
+    </div>
   </div>
 ` }) %>

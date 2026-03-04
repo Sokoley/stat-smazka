@@ -9,11 +9,13 @@ const router = express.Router();
 router.get('/ozon', requireAdmin, (req, res) => {
   const accounts = db.prepare('SELECT * FROM ozon_accounts ORDER BY name').all();
   const deepseekSettings = db.prepare('SELECT * FROM api_settings WHERE service = ?').get('deepseek');
+  const youtubeSettings = db.prepare('SELECT * FROM api_settings WHERE service = ?').get('youtube');
 
   res.render('admin/ozon-settings', {
     title: 'Настройки интеграций',
     accounts: accounts || [],
     deepseekApiKey: deepseekSettings?.api_key || '',
+    youtubeApiKey: youtubeSettings?.api_key || '',
     success: req.query.success,
     error: req.query.error,
   });
@@ -98,6 +100,26 @@ router.post('/ozon/deepseek', requireAdmin, (req, res) => {
   } catch (error) {
     console.error('Save DeepSeek API key error:', error);
     res.redirect('/admin/settings/ozon?error=' + encodeURIComponent('Ошибка сохранения ключа'));
+  }
+});
+
+// POST /admin/settings/ozon/youtube - Save YouTube API key
+router.post('/ozon/youtube', requireAdmin, (req, res) => {
+  const { api_key } = req.body;
+
+  try {
+    const existing = db.prepare('SELECT id FROM api_settings WHERE service = ?').get('youtube');
+    if (existing) {
+      db.prepare('UPDATE api_settings SET api_key = ?, updated_at = CURRENT_TIMESTAMP WHERE service = ?')
+        .run(api_key || '', 'youtube');
+    } else {
+      db.prepare('INSERT INTO api_settings (service, api_key) VALUES (?, ?)')
+        .run('youtube', api_key || '');
+    }
+    res.redirect('/admin/settings/ozon?success=' + encodeURIComponent('YouTube API ключ сохранён'));
+  } catch (error) {
+    console.error('Save YouTube API key error:', error);
+    res.redirect('/admin/settings/ozon?error=' + encodeURIComponent('Ошибка сохранения ключа YouTube'));
   }
 });
 
