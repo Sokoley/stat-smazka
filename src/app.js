@@ -13,6 +13,7 @@ const posRoutes = require('./routes/pos');
 const pricecheckRoutes = require('./routes/pricecheck');
 const { createPricecheckRouter } = require('./routes/pricecheck');
 const bloggersRoutes = require('./routes/bloggers');
+const apiRoutes = require('./routes/api');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -71,6 +72,7 @@ app.use('/ozon', ozonRoutes);
 app.use('/promo', promoRoutes);
 app.use('/pos', posRoutes);
 app.use('/bloggers', bloggersRoutes);
+app.use('/api', apiRoutes);
 app.use('/', dashboardRoutes);
 
 // 404 handler

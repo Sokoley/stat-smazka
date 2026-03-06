@@ -126,5 +126,23 @@
         </div>
       </form>
     </div>
+
+    <!-- Forecast report API (Прогнозная потребность) -->
+    <div class="card mt-6">
+      <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">API отчёта «Прогнозная потребность»</h3>
+      <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">Ключ для внешнего доступа к отчёту по API (например, с stat.smazka.ru). Запрос: <code class="text-xs bg-gray-100 dark:bg-gray-700 px-1 rounded">GET /api/forecast?days=28</code>, заголовок <code class="text-xs bg-gray-100 dark:bg-gray-700 px-1 rounded">X-API-Key</code> или <code class="text-xs bg-gray-100 dark:bg-gray-700 px-1 rounded">Authorization: Bearer &lt;key&gt;</code>.</p>
+
+      <form action="/admin/settings/ozon/forecast-api" method="POST" class="space-y-4">
+        <div>
+          <label for="forecast_api_key" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">API Key</label>
+          <input type="password" id="forecast_api_key" name="api_key" class="input-field" placeholder="Секретный ключ для доступа к API" value="${forecastApiKey || ''}" autocomplete="off">
+          <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">Задайте любой секретный ключ. Без ключа или при пустом значении API вернёт ошибку 503.</p>
+        </div>
+
+        <div class="pt-2">
+          <button type="submit" class="btn-primary">Сохранить ключ</button>
+        </div>
+      </form>
+    </div>
   </div>
 ` }) %>

@@ -10,12 +10,14 @@ router.get('/ozon', requireAdmin, (req, res) => {
   const accounts = db.prepare('SELECT * FROM ozon_accounts ORDER BY name').all();
   const deepseekSettings = db.prepare('SELECT * FROM api_settings WHERE service = ?').get('deepseek');
   const youtubeSettings = db.prepare('SELECT * FROM api_settings WHERE service = ?').get('youtube');
+  const forecastApiSettings = db.prepare('SELECT * FROM api_settings WHERE service = ?').get('forecast_api');
 
   res.render('admin/ozon-settings', {
     title: 'Настройки интеграций',
     accounts: accounts || [],
     deepseekApiKey: deepseekSettings?.api_key || '',
     youtubeApiKey: youtubeSettings?.api_key || '',
+    forecastApiKey: forecastApiSettings?.api_key || '',
     success: req.query.success,
     error: req.query.error,
   });
@@ -120,6 +122,26 @@ router.post('/ozon/youtube', requireAdmin, (req, res) => {
   } catch (error) {
     console.error('Save YouTube API key error:', error);
     res.redirect('/admin/settings/ozon?error=' + encodeURIComponent('Ошибка сохранения ключа YouTube'));
+  }
+});
+
+// POST /admin/settings/ozon/forecast-api - Save Forecast report API key (for external access)
+router.post('/ozon/forecast-api', requireAdmin, (req, res) => {
+  const { api_key } = req.body;
+
+  try {
+    const existing = db.prepare('SELECT id FROM api_settings WHERE service = ?').get('forecast_api');
+    if (existing) {
+      db.prepare('UPDATE api_settings SET api_key = ?, updated_at = CURRENT_TIMESTAMP WHERE service = ?')
+        .run(api_key || '', 'forecast_api');
+    } else {
+      db.prepare('INSERT INTO api_settings (service, api_key) VALUES (?, ?)')
+        .run('forecast_api', api_key || '');
+    }
+    res.redirect('/admin/settings/ozon?success=' + encodeURIComponent('Ключ API отчёта «Прогнозная потребность» сохранён'));
+  } catch (error) {
+    console.error('Save Forecast API key error:', error);
+    res.redirect('/admin/settings/ozon?error=' + encodeURIComponent('Ошибка сохранения ключа API'));
   }
 });
 

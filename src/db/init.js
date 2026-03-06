@@ -114,6 +114,12 @@ function initDatabase() {
     db.prepare('INSERT INTO api_settings (service, api_key) VALUES (?, ?)').run('youtube', '');
   }
 
+  // API key for external access to "Прогнозная потребность" report
+  const forecastApi = db.prepare('SELECT id FROM api_settings WHERE service = ?').get('forecast_api');
+  if (!forecastApi) {
+    db.prepare('INSERT INTO api_settings (service, api_key) VALUES (?, ?)').run('forecast_api', '');
+  }
+
   // Create default admin if not exists
   const admin = db.prepare('SELECT id FROM users WHERE email = ?').get('admin@example.com');
   if (!admin) {

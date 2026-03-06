@@ -562,6 +562,21 @@
           </div>
         </div>
 
+        <h4 class="font-medium text-white mt-4">Внешний API отчёта «Прогнозная потребность» (по API-ключу)</h4>
+        <p class="text-sm text-white/70 mb-2">Доступ по ключу: заголовок <code class="text-xs">X-API-Key</code> или <code class="text-xs">Authorization: Bearer &lt;key&gt;</code>, либо <code class="text-xs">?api_key=&lt;key&gt;</code>. Ключ задаётся в настройках интеграций.</p>
+        <div class="space-y-2 text-sm">
+          <div class="flex items-center gap-2 p-2 glass rounded">
+            <span class="px-2 py-0.5 text-xs font-medium bg-blue-500/30 text-blue-200 rounded border border-blue-400/30">GET</span>
+            <code class="text-purple-300">/api/forecast?days=28</code>
+            <span class="text-white/60">— Отчёт «Прогнозная потребность» в JSON</span>
+          </div>
+          <div class="flex items-center gap-2 p-2 glass rounded">
+            <span class="px-2 py-0.5 text-xs font-medium bg-green-500/30 text-green-200 rounded border border-green-400/30">POST</span>
+            <code class="text-purple-300">/api/forecast</code>
+            <span class="text-white/60">— То же, тело <code class="text-xs">{ "days": 28 }</code></span>
+          </div>
+        </div>
+
         <h4 class="font-medium text-white mt-4">Администрирование (требуется is_admin)</h4>
         <div class="space-y-2 text-sm">
           <div class="flex items-center gap-2 p-2 glass rounded">
