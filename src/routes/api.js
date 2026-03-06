@@ -46,11 +46,6 @@ router.get('/forecast', requireForecastApiKey, async (req, res) => {
       success: true,
       data: {
         report: formatReportForApi(data.report),
-        categories: data.categories,
-        startDate: data.startDate,
-        endDate: data.endDate,
-        totalDays: data.totalDays,
-        accountsUsed: data.accountsUsed,
       },
     });
   } catch (error) {
@@ -74,11 +69,6 @@ router.post('/forecast', requireForecastApiKey, async (req, res) => {
       success: true,
       data: {
         report: formatReportForApi(data.report),
-        categories: data.categories,
-        startDate: data.startDate,
-        endDate: data.endDate,
-        totalDays: data.totalDays,
-        accountsUsed: data.accountsUsed,
       },
     });
   } catch (error) {
