@@ -45,7 +45,7 @@ router.get('/forecast', requireForecastApiKey, async (req, res) => {
     res.json({
       success: true,
       data: {
-        report: data.report,
+        report: formatReportForApi(data.report),
         categories: data.categories,
         startDate: data.startDate,
         endDate: data.endDate,
