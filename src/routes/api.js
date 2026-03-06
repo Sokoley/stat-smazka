@@ -4,6 +4,30 @@ const { generateForecastReport } = require('../services/ozon');
 
 const router = express.Router();
 
+const FORECAST_REPORT_KEYS = [
+  'offer_id',
+  'product_name',
+  'category',
+  'total_quantity',
+  'avg_daily_sales',
+  'available_stock_count',
+  'transit_stock_count',
+  'free_stock',
+  'turnover',
+  'forecast_need',
+  'forecastNeedProizvodstvo',
+];
+
+function formatReportForApi(report) {
+  return report.map((row) => {
+    const out = {};
+    FORECAST_REPORT_KEYS.forEach((key) => {
+      if (row[key] !== undefined) out[key] = row[key];
+    });
+    return out;
+  });
+}
+
 /**
  * GET /api/forecast
  * Query: days (optional, default 28) — период в днях для расчёта.
@@ -49,7 +73,7 @@ router.post('/forecast', requireForecastApiKey, async (req, res) => {
     res.json({
       success: true,
       data: {
-        report: data.report,
+        report: formatReportForApi(data.report),
         categories: data.categories,
         startDate: data.startDate,
         endDate: data.endDate,
