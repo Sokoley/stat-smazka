@@ -599,7 +599,23 @@ async function makeOzonRequest(endpoint, data, clientId, apiKey) {
   if (!response.ok) {
     const text = await response.text();
     console.error(`OZON API error ${endpoint}: ${response.status}`, text);
-    return { error: `HTTP Error: ${response.status}`, response: text };
+    let errMsg = `HTTP Error: ${response.status}`;
+    try {
+      const parsed = JSON.parse(text);
+      if (parsed && typeof parsed === 'object') {
+        const msg =
+          parsed.message ||
+          (typeof parsed.error === 'string' ? parsed.error : null) ||
+          (parsed.error && typeof parsed.error === 'object' && parsed.error.message) ||
+          (parsed.errors && Array.isArray(parsed.errors) && parsed.errors[0] && parsed.errors[0].message);
+        if (msg) errMsg += ': ' + (typeof msg === 'string' ? msg : String(msg).substring(0, 200));
+        else errMsg += ': ' + JSON.stringify(parsed).substring(0, 250);
+      }
+    } catch (_) {
+      if (text && text.length < 300) errMsg += ': ' + text;
+      else if (text) errMsg += ' (тело ответа в логах сервера)';
+    }
+    return { error: errMsg, response: text };
   }
 
   return response.json();
@@ -725,11 +741,22 @@ async function getSupplyOrdersForAccount(accountName, clientId, apiKey) {
     sort_dir: 'DESC',
   };
 
-  const listResponse = await makeOzonRequest('/v3/supply-order/list', listData, clientId, apiKey);
+  let listResponse = await makeOzonRequest('/v3/supply-order/list', listData, clientId, apiKey);
+
+  // Fallback на v2 для аккаунтов, где v3 возвращает 400 (например, другой тип/регион)
+  if (listResponse.error && String(listResponse.error).includes('400')) {
+    console.warn(`[Поставки] ${accountName}: v3 вернул 400, пробуем v2...`);
+    listResponse = await makeOzonRequest('/v2/supply-order/list', listData, clientId, apiKey);
+  }
 
   if (listResponse.error) {
-    console.error(`[Поставки] Ошибка получения списка заявок для ${accountName}:`, listResponse.error);
-    return { orders: [], error: listResponse.error, account: accountName };
+    console.error(`[Поставки] Ошибка получения списка заявок для ${accountName}:`, listResponse.error, listResponse.response);
+    return {
+      orders: [],
+      error: listResponse.error,
+      account: accountName,
+      detail: listResponse.response,
+    };
   }
 
   if (!listResponse.order_ids || listResponse.order_ids.length === 0) {
@@ -739,17 +766,42 @@ async function getSupplyOrdersForAccount(accountName, clientId, apiKey) {
 
   console.log(`[Поставки] ${accountName}: найдено ${listResponse.order_ids.length} заявок`);
 
-  const detailResponse = await makeOzonRequest('/v3/supply-order/get', {
-    order_ids: listResponse.order_ids,
-  }, clientId, apiKey);
+  // OZON API: order_ids — не более 50 в одном запросе
+  const BATCH_SIZE = 50;
+  const orderIds = listResponse.order_ids;
+  const allOrders = [];
 
-  if (detailResponse.error || !detailResponse.orders) {
-    console.error(`[Поставки] Ошибка получения деталей заявок для ${accountName}:`, detailResponse.error);
-    return { orders: [], error: detailResponse.error || 'Unknown error', account: accountName };
+  for (let offset = 0; offset < orderIds.length; offset += BATCH_SIZE) {
+    const batch = orderIds.slice(offset, offset + BATCH_SIZE);
+    let detailResponse = await makeOzonRequest('/v3/supply-order/get', {
+      order_ids: batch,
+    }, clientId, apiKey);
+
+    if (detailResponse.error && String(detailResponse.error).includes('400')) {
+      console.warn(`[Поставки] ${accountName}: v3 get вернул 400, пробуем v2...`);
+      detailResponse = await makeOzonRequest('/v2/supply-order/get', {
+        order_ids: batch,
+      }, clientId, apiKey);
+    }
+
+    if (detailResponse.error || !detailResponse.orders) {
+      console.error(`[Поставки] Ошибка получения деталей заявок для ${accountName}:`, detailResponse.error, detailResponse.response);
+      return {
+        orders: [],
+        error: detailResponse.error || 'Unknown error',
+        account: accountName,
+        detail: detailResponse.response,
+      };
+    }
+
+    allOrders.push(...detailResponse.orders);
+    if (offset + BATCH_SIZE < orderIds.length) {
+      await new Promise(resolve => setTimeout(resolve, 200));
+    }
   }
 
   let orderIndex = 0;
-  for (const order of detailResponse.orders) {
+  for (const order of allOrders) {
     order.account_name = accountName;
 
     const bundleIds = [];
@@ -844,7 +896,7 @@ async function getSupplyOrdersForAccount(accountName, clientId, apiKey) {
     orderIndex++;
   }
 
-  return detailResponse;
+  return { orders: allOrders };
 }
 
 async function getSupplyOrders() {
@@ -868,14 +920,18 @@ async function getSupplyOrders() {
       );
 
       if (result.error) {
-        errors.push({ account: account.name, error: result.error });
+        errors.push({
+          account: account.name,
+          error: result.error,
+          detail: result.detail !== undefined ? result.detail : null,
+        });
       }
 
       if (result.orders && Array.isArray(result.orders)) {
         allOrders.push(...result.orders);
       }
     } catch (err) {
-      errors.push({ account: account.name, error: err.message });
+      errors.push({ account: account.name, error: err.message, detail: null });
     }
 
     // Delay between accounts

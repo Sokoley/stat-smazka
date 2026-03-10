@@ -30,6 +30,11 @@
       <p id="errorText" class="text-red-600 dark:text-red-400"></p>
     </div>
 
+    <div id="accountErrors" class="hidden bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-4">
+      <p class="text-amber-800 dark:text-amber-200 font-medium mb-2">По части кабинетов данные не загружены:</p>
+      <ul id="accountErrorsList" class="list-disc list-inside text-sm text-amber-700 dark:text-amber-300 space-y-1"></ul>
+    </div>
+
     <div class="card overflow-hidden">
       <div class="overflow-x-auto">
         <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
@@ -59,6 +64,13 @@
   <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
   <script>
     let currentOrders = [];
+
+    function escapeHtml(s) {
+      if (typeof s !== 'string') return '';
+      const div = document.createElement('div');
+      div.textContent = s;
+      return div.innerHTML;
+    }
 
     function showError(message) {
       const el = document.getElementById('error');
@@ -224,6 +236,31 @@
 
         if (data._debug_errors && data._debug_errors.length > 0) {
           console.warn('Ошибки при загрузке из аккаунтов:', data._debug_errors);
+          const errEl = document.getElementById('accountErrors');
+          const listEl = document.getElementById('accountErrorsList');
+          listEl.innerHTML = data._debug_errors.map(e => {
+            let msg = e.account + ': ' + (e.error || 'Ошибка');
+            let detailStr = '';
+            if (e.detail != null && e.detail !== '') {
+              try {
+                const d = typeof e.detail === 'string' ? JSON.parse(e.detail) : e.detail;
+                if (d && typeof d === 'object' && (d.message || d.error)) {
+                  detailStr = typeof d.message === 'string' ? d.message : (d.error || JSON.stringify(d));
+                } else {
+                  detailStr = typeof e.detail === 'string' ? e.detail.substring(0, 500) : String(e.detail);
+                }
+              } catch (_) {
+                detailStr = typeof e.detail === 'string' ? e.detail.substring(0, 500) : String(e.detail);
+              }
+            } else if ((e.error || '').includes('400')) {
+              detailStr = 'Подробности в логах сервера (консоль Node).';
+            }
+            if (detailStr) msg += ' — ' + detailStr;
+            return '<li>' + escapeHtml(msg) + '</li>';
+          }).join('');
+          errEl.classList.remove('hidden');
+        } else {
+          document.getElementById('accountErrors').classList.add('hidden');
         }
 
         currentOrders = data.orders || [];
