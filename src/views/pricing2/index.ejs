@@ -129,7 +129,15 @@
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ competitorsByArticul: competitorsByArticul, mpstatsData: compMpstats })
-    }).catch(function(e) { console.error('save-competitors', e); });
+    })
+      .then(function(r) {
+        if (!r.ok) return r.json().then(function(d) { throw new Error(d.error || d.message || r.status); });
+        return r.json();
+      })
+      .catch(function(e) {
+        console.error('save-competitors', e);
+        showError('Не удалось сохранить конкурентов на сервер: ' + (e.message || e));
+      });
   }
 
   function showError(msg) {
@@ -435,6 +443,7 @@
       if (competitorsByArticul[articul].indexOf(sku) !== -1) return;
       competitorsByArticul[articul].push(sku);
       input.value = '';
+      saveCompetitorsToServer();
       loadMpstatsSalesForSkus([sku]);
       return;
     }
