@@ -175,6 +175,45 @@ router.post('/api/mpstats-sales', requireAuth, async (req, res) => {
   res.json({ items: result });
 });
 
+// POST - данные MPStats по дням для одного SKU (для графика). Body: { sku: 123 }
+// Ответ: { data: [ { date: "YYYY-MM-DD", sales: N, ozon_card_price: N }, ... ] } по возрастанию даты
+router.post('/api/mpstats-sales-daily', requireAuth, async (req, res) => {
+  const row = db.prepare("SELECT api_key FROM api_settings WHERE service = 'mpstats'").get();
+  const token = (row && row.api_key) ? String(row.api_key).trim() : (process.env.MPSTATS_TOKEN || '');
+  if (!token) {
+    return res.status(503).json({ error: 'MPStats не настроен.' });
+  }
+  const sku = req.body && req.body.sku != null ? Number(req.body.sku) : NaN;
+  if (isNaN(sku) || sku <= 0) {
+    return res.status(400).json({ error: 'Укажите sku.' });
+  }
+  const { d1, d2 } = getDefaultPeriod();
+  const params = new URLSearchParams({ d1, d2 });
+  try {
+    const response = await fetch(
+      `https://mpstats.io/api/oz/get/item/${sku}/sales?${params}`,
+      { headers: { 'X-Mpstats-TOKEN': token, 'Content-Type': 'application/json' } }
+    );
+    if (!response.ok) {
+      return res.status(response.status).json({ error: 'Ошибка MPStats' });
+    }
+    const data = await response.json();
+    if (!Array.isArray(data) || data.length === 0) {
+      return res.json({ data: [] });
+    }
+    const sorted = data.slice().sort((a, b) => (a.data || '').localeCompare(b.data || ''));
+    const result = sorted.map((x) => ({
+      date: x.data || '',
+      sales: Number(x.sales) || 0,
+      ozon_card_price: x.ozon_card_price != null && x.ozon_card_price !== '' ? Number(x.ozon_card_price) : null,
+    }));
+    res.json({ data: result });
+  } catch (err) {
+    console.error('MPStats sales daily for SKU', sku, err.message);
+    res.status(500).json({ error: err.message || 'Ошибка загрузки' });
+  }
+});
+
 // GET - загрузить сохранённые данные наших товаров (ppsData, ozonInfo, mpstatsData только по нашим SKU)
 router.get('/api/our-products', requireAuth, async (req, res) => {
   try {
