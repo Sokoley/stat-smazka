@@ -144,5 +144,23 @@
         </div>
       </form>
     </div>
+
+    <!-- MPStats API (Регулирование цен DEV) -->
+    <div class="card mt-6">
+      <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">MPStats</h3>
+      <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">Токен для загрузки цен по Ozon Card и продаж конкурентов на странице «Регулирование цен DEV». Используется метод <code class="text-xs bg-gray-100 dark:bg-gray-700 px-1 rounded">oz/get/item/{sku}/sales</code>. Документация: <a href="https://mpstats.io/integrations/description" target="_blank" rel="noopener" class="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300">API</a>, <a href="https://mpstats.io/integrations/oz_reports" target="_blank" rel="noopener" class="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300">методы OZ отчётов</a>.</p>
+
+      <form action="/admin/settings/ozon/mpstats" method="POST" class="space-y-4">
+        <div>
+          <label for="mpstats_api_key" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">X-Mpstats-TOKEN</label>
+          <input type="password" id="mpstats_api_key" name="api_key" class="input-field" placeholder="Токен MPStats" value="${mpstatsApiKey || ''}" autocomplete="off">
+          <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">Укажите токен из личного кабинета MPStats. Без токена добавление конкурентов по SKU на странице DEV будет недоступно.</p>
+        </div>
+
+        <div class="pt-2">
+          <button type="submit" class="btn-primary">Сохранить токен</button>
+        </div>
+      </form>
+    </div>
   </div>
 ` }) %>

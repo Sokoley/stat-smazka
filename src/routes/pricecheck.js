@@ -2,6 +2,7 @@ const express = require('express');
 const fs = require('fs').promises;
 const path = require('path');
 const { requireAdmin } = require('../middleware/auth');
+const db = require('../db/database');
 
 const PUBLIC_DIR = path.join(__dirname, '../public/pricecheck');
 
@@ -65,6 +66,64 @@ function createPricecheckRouter(options) {
       timestamp: new Date().toISOString(),
       info: 'Ozon Card Price Parser API',
       dataDir: DATA_DIR
+    });
+  });
+
+  // MPStats API proxy: метод oz/get/item/{sku}/sales (Регулирование цен DEV)
+  // Документация API: https://mpstats.io/integrations/description
+  // Методы (OZ отчёты): https://mpstats.io/integrations/oz_reports
+  router.get('/api/mpstats/oz/item/:sku/sales', adminMiddleware, async (req, res) => {
+    const row = db.prepare("SELECT api_key FROM api_settings WHERE service = 'mpstats'").get();
+    const token = (row && row.api_key) ? String(row.api_key).trim() : (process.env.MPSTATS_TOKEN || '');
+    if (!token) {
+      return res.status(503).json({
+        success: false,
+        error: 'Токен MPStats не настроен. Укажите его в разделе Интеграции.'
+      });
+    }
+    const sku = req.params.sku;
+    if (!/^\d+$/.test(sku)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Некорректный SKU'
+      });
+    }
+    const { d1, d2, fbs } = req.query;
+    const query = new URLSearchParams();
+    if (d1) query.set('d1', String(d1));
+    if (d2) query.set('d2', String(d2));
+    if (fbs !== undefined) query.set('fbs', String(fbs));
+    const qs = query.toString();
+    const url = `https://mpstats.io/api/oz/get/item/${sku}/sales${qs ? '?' + qs : ''}`;
+    const https = require('https');
+    const request = https.get(url, {
+      headers: {
+        'X-Mpstats-TOKEN': token,
+        'Content-Type': 'application/json'
+      }
+    }, (mpRes) => {
+      let body = '';
+      mpRes.on('data', (chunk) => { body += chunk; });
+      mpRes.on('end', () => {
+        if (mpRes.statusCode !== 200) {
+          try {
+            const err = JSON.parse(body);
+            return res.status(mpRes.statusCode).json(err);
+          } catch {
+            return res.status(mpRes.statusCode).json({ success: false, error: body || 'MPStats error' });
+          }
+        }
+        try {
+          const data = JSON.parse(body);
+          res.json(data);
+        } catch (e) {
+          res.status(502).json({ success: false, error: 'Invalid JSON from MPStats' });
+        }
+      });
+    });
+    request.on('error', (err) => {
+      console.error('MPStats request error:', err);
+      res.status(502).json({ success: false, error: err.message });
     });
   });
 

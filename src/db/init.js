@@ -120,6 +120,12 @@ function initDatabase() {
     db.prepare('INSERT INTO api_settings (service, api_key) VALUES (?, ?)').run('forecast_api', '');
   }
 
+  // MPStats API token (Регулирование цен DEV — продажи и цены по Ozon Card)
+  const mpstats = db.prepare('SELECT id FROM api_settings WHERE service = ?').get('mpstats');
+  if (!mpstats) {
+    db.prepare('INSERT INTO api_settings (service, api_key) VALUES (?, ?)').run('mpstats', '');
+  }
+
   // Create default admin if not exists
   const admin = db.prepare('SELECT id FROM users WHERE email = ?').get('admin@example.com');
   if (!admin) {

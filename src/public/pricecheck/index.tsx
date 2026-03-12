@@ -150,6 +150,13 @@ interface AppState {
   collapsedCategories: Record<string, boolean>; // Свёрнутые подкатегории
   /** На DEV: выбор источника — null до выбора, 'all' все продукты, 'ozon70' доля >70% на OZON */
   vmpSourceMode?: 'all' | 'ozon70' | null;
+  /** На DEV: период для MPStats (d1, d2) и данные по нашим товарам/обновление */
+  mpstatsPeriod?: { d1: string; d2: string };
+  mpstatsOurData?: Record<string, { ozonCardPrice?: number; qty?: number; sum?: number }>;
+  mpstatsRefreshLoading?: boolean;
+  /** На DEV: ввод SKU для добавления конкурента по артикулу товара */
+  addCompetitorSkuByArticul?: Record<string, string>;
+  addCompetitorLoadingByArticul?: Record<string, boolean>;
 }
 
 interface DataFileInfo {
@@ -409,6 +416,20 @@ const calculateRecommendedPrice = (
   }
 };
 
+// MPStats API: элемент ответа oz/get/item/{sku}/sales
+interface MpstatsSalesDay {
+  data: string;
+  sales: number;
+  price?: number;
+  final_price?: number;
+  ozon_card_price?: number;
+  balance?: number;
+  rating?: number;
+  is_bestseller?: number;
+  is_new?: number;
+  comments?: number;
+}
+
 // Helper to extract SKU from Ozon URL
 const extractSkuFromUrl = (url: string): string | null => {
   if (!url) return null;
@@ -433,6 +454,47 @@ const extractSkuFromUrl = (url: string): string | null => {
     const match = url.match(/product\/(\d+)/);
     return match ? match[1] : null;
   }
+};
+
+// Загрузка продаж и цен по SKU из MPStats: метод oz/get/item/{sku}/sales
+// Документация: https://mpstats.io/integrations/description, https://mpstats.io/integrations/oz_reports
+const fetchMpstatsItemSales = async (
+  sku: string,
+  d1?: string,
+  d2?: string
+): Promise<MpstatsSalesDay[]> => {
+  const params = new URLSearchParams();
+  if (d1) params.set('d1', d1);
+  if (d2) params.set('d2', d2);
+  const qs = params.toString();
+  const url = `${PARSER_API_URL}/mpstats/oz/item/${sku}/sales${qs ? '?' + qs : ''}`;
+  const res = await fetch(url);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: res.statusText }));
+    throw new Error(err.error || `HTTP ${res.status}`);
+  }
+  const data = await res.json();
+  if (!Array.isArray(data)) throw new Error('Ожидается массив данных');
+  return data as MpstatsSalesDay[];
+};
+
+// Агрегация ответа MPStats sales в итоги за период
+const aggregateMpstatsSales = (rows: MpstatsSalesDay[]): { ozonCardPrice?: number; qty: number; sum: number } => {
+  let totalQty = 0;
+  let totalSum = 0;
+  let lastOzonCardPrice: number | undefined;
+  rows.forEach((day: MpstatsSalesDay) => {
+    const qty = day.sales || 0;
+    totalQty += qty;
+    const price = day.ozon_card_price ?? day.final_price ?? day.price ?? 0;
+    totalSum += qty * price;
+    if (day.ozon_card_price != null) lastOzonCardPrice = day.ozon_card_price;
+  });
+  if (lastOzonCardPrice == null && rows.length > 0) {
+    const last = rows[rows.length - 1];
+    lastOzonCardPrice = last.ozon_card_price ?? last.final_price ?? last.price;
+  }
+  return { ozonCardPrice: lastOzonCardPrice, qty: totalQty, sum: Math.round(totalSum) };
 };
 
 // Helper to clean header string
@@ -1061,7 +1123,19 @@ const App = () => {
     salesLoading: false,
     ozonCategories: {},
     collapsedCategories: {},
-    vmpSourceMode: IS_DEV_PAGE ? null : 'all'
+    vmpSourceMode: IS_DEV_PAGE ? null : 'all',
+    ...(IS_DEV_PAGE ? (() => {
+      const d2 = new Date();
+      const d1 = new Date(d2);
+      d1.setDate(d1.getDate() - 14);
+      return {
+        mpstatsPeriod: { d1: d1.toISOString().slice(0, 10), d2: d2.toISOString().slice(0, 10) },
+        mpstatsOurData: {},
+        mpstatsRefreshLoading: false,
+        addCompetitorSkuByArticul: {},
+        addCompetitorLoadingByArticul: {}
+      };
+    })() : {})
   });
 
   const [modalImage, setModalImage] = useState<string | null>(null);
@@ -1084,6 +1158,25 @@ const App = () => {
   const [isManagingFiles, setIsManagingFiles] = useState<boolean>(false);
   const [isSaving, setIsSaving] = useState<boolean>(false);
   const [activeHistoryModal, setActiveHistoryModal] = useState<{competitor: CompetitorRow | null, productName: string}>({competitor: null, productName: ''});
+  // DEV: добавление конкурента по SKU Ozon (MPStats)
+  const [devCompetitorSkuInput, setDevCompetitorSkuInput] = useState('');
+  const [devCompetitorSkuLoading, setDevCompetitorSkuLoading] = useState(false);
+  const [devCompetitorSkuError, setDevCompetitorSkuError] = useState<string | null>(null);
+  const [devCompetitorPeriod, setDevCompetitorPeriod] = useState<{ d1: string; d2: string }>(() => {
+    const d2 = new Date();
+    const d1 = new Date(d2);
+    d1.setDate(d1.getDate() - 14);
+    return {
+      d1: d1.toISOString().slice(0, 10),
+      d2: d2.toISOString().slice(0, 10)
+    };
+  });
+  const mpstatsPeriod = state.mpstatsPeriod ?? (() => {
+    const d2 = new Date();
+    const d1 = new Date(d2);
+    d1.setDate(d1.getDate() - 14);
+    return { d1: d1.toISOString().slice(0, 10), d2: d2.toISOString().slice(0, 10) };
+  })();
 
   // Ref для доступа к актуальному state в асинхронных колбэках (загрузка файла в группе)
   const stateRef = useRef<AppState>(state);
@@ -2483,6 +2576,150 @@ priceHistory: [{
   }));
 };
 
+  // DEV: добавить конкурента по SKU в таблицу (данные из MPStats за выбранный период)
+  const handleAddCompetitorBySkuForProduct = async (articul: string, skuRaw: string) => {
+    const sku = skuRaw.trim().replace(/\D/g, '');
+    if (!sku) return;
+    setState(prev => ({
+      ...prev,
+      addCompetitorLoadingByArticul: { ...(prev.addCompetitorLoadingByArticul || {}), [articul]: true }
+    }));
+    try {
+      const rows = await fetchMpstatsItemSales(sku, mpstatsPeriod.d1, mpstatsPeriod.d2);
+      if (rows.length === 0) {
+        alert('Нет данных за выбранный период');
+        return;
+      }
+      const { ozonCardPrice: lastOzonCardPrice, qty: totalQty, sum: totalSum } = aggregateMpstatsSales(rows);
+      const existing = state.competitorSelections[articul] || [];
+      const newCompetitor: CompetitorRow = {
+        name: `Товар Ozon ${sku}`,
+        brand: '-',
+        link: `https://www.ozon.ru/product/${sku}`,
+        qty: totalQty,
+        sum: totalSum,
+        originalIndex: existing.length,
+        sku: sku,
+        ozonCardPrice: lastOzonCardPrice != null ? String(lastOzonCardPrice) : undefined,
+        lastUpdated: new Date().toISOString(),
+        priceHistory: [{
+          date: new Date().toISOString(),
+          price: lastOzonCardPrice != null ? String(lastOzonCardPrice) : '',
+          priceNumber: lastOzonCardPrice ?? 0,
+          source: 'mpstats',
+          qty: totalQty,
+          sum: totalSum,
+          qtyNumber: totalQty,
+          sumNumber: totalSum
+        }]
+      };
+      const updatedSelections = {
+        ...state.competitorSelections,
+        [articul]: [...existing, newCompetitor]
+      };
+      await saveDataToServer({
+        competitorSelections: updatedSelections,
+        parsedPrices: state.parsedPrices,
+        uploadedFiles: state.uploadedFiles,
+        visibilityOverride: state.visibilityOverride,
+        lastUpdated: new Date().toISOString()
+      }, selectedFile);
+      setState(prev => ({
+        ...prev,
+        competitorSelections: updatedSelections,
+        addCompetitorSkuByArticul: { ...(prev.addCompetitorSkuByArticul || {}), [articul]: '' },
+        addCompetitorLoadingByArticul: { ...(prev.addCompetitorLoadingByArticul || {}), [articul]: false }
+      }));
+    } catch (e: any) {
+      alert(e?.message || 'Ошибка загрузки из MPStats');
+      setState(prev => ({
+        ...prev,
+        addCompetitorLoadingByArticul: { ...(prev.addCompetitorLoadingByArticul || {}), [articul]: false }
+      }));
+    }
+  };
+
+  // DEV: обновить все данные из MPStats (наши товары + конкуренты) за выбранный период
+  const refreshMpstatsForAll = async () => {
+    if (!IS_DEV_PAGE) return;
+    setState(prev => ({ ...prev, mpstatsRefreshLoading: true }));
+    const period = state.mpstatsPeriod ?? mpstatsPeriod;
+    const ourData: Record<string, { ozonCardPrice?: number; qty?: number; sum?: number }> = {};
+    const visibleArticuls = filteredData.map((item: VmpItem) => item.Артикул);
+    try {
+      for (const articul of visibleArticuls) {
+        const sku = state.ozonData[articul]?.sku?.toString();
+        if (!sku) continue;
+        try {
+          const rows = await fetchMpstatsItemSales(sku, period.d1, period.d2);
+          if (rows.length > 0) {
+            const agg = aggregateMpstatsSales(rows);
+            ourData[articul] = { ozonCardPrice: agg.ozonCardPrice, qty: agg.qty, sum: agg.sum };
+          }
+        } catch (_) {}
+      }
+      let updatedSelections = { ...state.competitorSelections };
+      for (const articul of Object.keys(updatedSelections)) {
+        const list = updatedSelections[articul] || [];
+        const updatedList: CompetitorRow[] = [];
+        for (const c of list) {
+          if (!c.sku) {
+            updatedList.push(c);
+            continue;
+          }
+          try {
+            const rows = await fetchMpstatsItemSales(c.sku, period.d1, period.d2);
+            if (rows.length === 0) {
+              updatedList.push(c);
+              continue;
+            }
+            const agg = aggregateMpstatsSales(rows);
+            updatedList.push({
+              ...c,
+              qty: agg.qty,
+              sum: agg.sum,
+              ozonCardPrice: agg.ozonCardPrice != null ? String(agg.ozonCardPrice) : c.ozonCardPrice,
+              lastUpdated: new Date().toISOString(),
+              priceHistory: [
+                ...(c.priceHistory || []),
+                {
+                  date: new Date().toISOString(),
+                  price: agg.ozonCardPrice != null ? String(agg.ozonCardPrice) : '',
+                  priceNumber: agg.ozonCardPrice ?? 0,
+                  source: 'mpstats',
+                  qty: agg.qty,
+                  sum: agg.sum,
+                  qtyNumber: agg.qty,
+                  sumNumber: agg.sum
+                }
+              ]
+            });
+          } catch (_) {
+            updatedList.push(c);
+          }
+        }
+        updatedSelections[articul] = updatedList;
+      }
+      await saveDataToServer({
+        competitorSelections: updatedSelections,
+        parsedPrices: state.parsedPrices,
+        uploadedFiles: state.uploadedFiles,
+        visibilityOverride: state.visibilityOverride,
+        lastUpdated: new Date().toISOString()
+      }, selectedFile);
+      setState(prev => ({
+        ...prev,
+        mpstatsOurData: { ...(prev.mpstatsOurData || {}), ...ourData },
+        competitorSelections: updatedSelections,
+        mpstatsRefreshLoading: false
+      }));
+    } catch (e) {
+      setState(prev => ({ ...prev, mpstatsRefreshLoading: false }));
+      console.error('refreshMpstatsForAll error:', e);
+      alert('Ошибка обновления данных из MPStats');
+    }
+  };
+
   const toggleCompetitorSelection = (index: number) => {
     setTempSelectedIndices(prev => {
       const next = new Set(prev);
@@ -3462,6 +3699,16 @@ priceHistory: [{
   return (
     <div className="container-fluid pb-5">
       <h1 className="mb-4 text-center">{IS_DEV_PAGE ? 'Регулирование цен DEV' : 'Регулирование цен'}</h1>
+
+      <div className="alert alert-light border mb-3 small">
+        <strong>Формула средневзвешенной цены:</strong>
+        <div className="mt-1 font-monospace">
+          Средневзвешенная = Σ(заказы<sub>i</sub> × цена по карте<sub>i</sub>) / Σ(заказы<sub>i</sub>)
+        </div>
+        <div className="mt-1 text-muted">
+          Цена по карте для конкурента = спарсенная цена × 0,9 (минус 10% скидки Ozon Card). Рекомендованная цена = средневзвешенная × 0,98 (−2%).
+        </div>
+      </div>
       
       {state.usingFallback && (
         <div className="alert alert-warning mb-3">
@@ -3621,6 +3868,55 @@ priceHistory: [{
           ))}
         </div>
       </div>
+
+      {IS_DEV_PAGE && (
+        <div className="card mb-3">
+          <div className="card-body py-2">
+            <div className="d-flex flex-wrap align-items-center gap-3">
+              <span className="fw-semibold">Период MPStats:</span>
+              <label className="d-flex align-items-center gap-1">
+                <span className="small text-muted">d1</span>
+                <input
+                  type="date"
+                  className="form-control form-control-sm"
+                  style={{ width: '140px' }}
+                  value={mpstatsPeriod.d1}
+                  onChange={(e) => setState((prev: AppState) => ({
+                    ...prev,
+                    mpstatsPeriod: { ...(prev.mpstatsPeriod || mpstatsPeriod), d1: e.target.value }
+                  }))}
+                />
+              </label>
+              <label className="d-flex align-items-center gap-1">
+                <span className="small text-muted">d2</span>
+                <input
+                  type="date"
+                  className="form-control form-control-sm"
+                  style={{ width: '140px' }}
+                  value={mpstatsPeriod.d2}
+                  onChange={(e) => setState((prev: AppState) => ({
+                    ...prev,
+                    mpstatsPeriod: { ...(prev.mpstatsPeriod || mpstatsPeriod), d2: e.target.value }
+                  }))}
+                />
+              </label>
+              <button
+                type="button"
+                className="btn btn-primary btn-sm"
+                disabled={state.mpstatsRefreshLoading}
+                onClick={refreshMpstatsForAll}
+              >
+                {state.mpstatsRefreshLoading ? (
+                  <><span className="spinner-border spinner-border-sm me-1" role="status"></span>Обновление...</>
+                ) : (
+                  <>Обновить из MPStats</>
+                )}
+              </button>
+              <span className="small text-muted">Цены и продажи наших товаров и конкурентов подгружаются из MPStats за выбранный период.</span>
+            </div>
+          </div>
+        </div>
+      )}
 
 <div className="mb-3 d-flex gap-2 flex-wrap">
   {/* <button className="btn btn-success" onClick={handleExport}>📊 Скачать в Excel</button> */}
@@ -3840,33 +4136,34 @@ priceHistory: [{
               const competitors = state.competitorSelections[item.Артикул] || [];
               const hasFile = hasTypeFile;
 
-              // Проверяем, есть ли конкуренты с предупреждением
+              // Проверяем, есть ли конкуренты с предупреждением (на DEV — наши данные из MPStats)
+              const ourMpstatsRow = IS_DEV_PAGE ? state.mpstatsOurData?.[item.Артикул] : null;
               const ourParsedData = getLatestParsedPrice(state.parsedPrices, item.Артикул);
               const ourParsedPrice = ourParsedData?.price;
               const ourSku = ozonItem?.sku ? String(ozonItem.sku) : null;
               const ourSalesData = ourSku ? state.salesData[ourSku] : null;
               const ourDiscountPercent = state.ozonPrices[item.Артикул]?.discount_percent || 0;
               const ourAdjustedSum = ourSalesData?.sum ? ourSalesData.sum * (1 - ourDiscountPercent) : 0;
-              // Цена по Ozon Card = спарсенная цена - 10%
-              const ourParsedPriceNum = ourParsedPrice
-                ? parseFloat(String(ourParsedPrice).replace(/[^\d.,]/g, '').replace(',', '.')) || 0
-                : 0;
-              const ourPriceNum = ourParsedPriceNum * 0.9;
+              const ourPriceNum = ourMpstatsRow?.ozonCardPrice != null
+                ? ourMpstatsRow.ozonCardPrice
+                : (ourParsedPrice
+                    ? parseFloat(String(ourParsedPrice).replace(/[^\d.,]/g, '').replace(',', '.')) * 0.9 || 0
+                    : 0);
+              const ourQtyRow = ourMpstatsRow?.qty ?? ourSalesData?.qty;
+              const ourSumRow = ourMpstatsRow?.sum ?? (ourAdjustedSum > 0 ? ourAdjustedSum : null);
 
-              // Проверяем каждого конкурента на условие предупреждения
               const hasWarningCompetitor = competitors.some((c: CompetitorRow) => {
                 const competitorParsedPrice = c.ozonCardPrice
                   ? parseFloat(String(c.ozonCardPrice).replace(/[^\d.,]/g, '').replace(',', '.')) || 0
                   : 0;
-                // Цена по Ozon Card = спарсенная цена - 10%
                 const competitorPriceNum = competitorParsedPrice * 0.9;
                 const competitorQty = typeof c.qty === 'number' ? c.qty : parseFloat(String(c.qty || '0').replace(/[^\d.-]/g, '')) || 0;
                 const competitorSum = typeof c.sum === 'number' ? c.sum : parseFloat(String(c.sum || '0').replace(/[^\d.-]/g, '')) || 0;
 
                 return ourPriceNum > 0 && competitorPriceNum > 0 &&
                   competitorPriceNum < ourPriceNum &&
-                  ((ourSalesData?.qty && competitorQty > ourSalesData.qty) ||
-                   (ourAdjustedSum > 0 && competitorSum > ourAdjustedSum));
+                  ((ourQtyRow != null && competitorQty > ourQtyRow) ||
+                   (ourSumRow != null && ourSumRow > 0 && competitorSum > ourSumRow));
               });
 
               return (
@@ -3929,19 +4226,24 @@ priceHistory: [{
                     </td>
                     <td>
                       {(() => {
-                        // Берём последнюю спарсенную цену
+                        if (IS_DEV_PAGE && state.mpstatsOurData?.[item.Артикул]?.ozonCardPrice != null) {
+                          const p = state.mpstatsOurData[item.Артикул]!;
+                          return (
+                            <div className="price-display price-card">
+                              {new Intl.NumberFormat('ru-RU', { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(p.ozonCardPrice!)} ₽
+                              <div className="small text-muted"><i className="bi bi-cloud"></i> MPStats</div>
+                            </div>
+                          );
+                        }
                         const parsedData = getLatestParsedPrice(state.parsedPrices, item.Артикул);
                         const parsedPrice = parsedData?.price;
                         const parsedDate = parsedData?.date;
-
-                        // Функция для расчёта цены по Ozon Card = спарсенная цена - 10%
                         const calculateOzonCardPrice = (priceStr: string): string => {
                           const priceNum = parseFloat(priceStr.replace(/[^\d.,]/g, '').replace(',', '.')) || 0;
                           if (priceNum <= 0) return priceStr;
                           const ozonCardPrice = priceNum * 0.9;
                           return `${new Intl.NumberFormat('ru-RU', { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(ozonCardPrice)} ₽`;
                         };
-
                         if (parsedPrice) {
                           const today = new Date().toISOString().split('T')[0];
                           const isToday = parsedDate === today;
@@ -3969,6 +4271,9 @@ priceHistory: [{
                     </td>
                     <td>
                       {(() => {
+                        if (IS_DEV_PAGE && state.mpstatsOurData?.[item.Артикул]?.qty != null) {
+                          return <span>{new Intl.NumberFormat('ru-RU').format(state.mpstatsOurData[item.Артикул]!.qty!)}</span>;
+                        }
                         const sku = ozonItem?.sku ? String(ozonItem.sku) : null;
                         const salesData = sku ? state.salesData[sku] : null;
                         if (salesData?.qty) {
@@ -3979,18 +4284,21 @@ priceHistory: [{
                     </td>
                     <td>
                       {(() => {
+                        if (IS_DEV_PAGE && state.mpstatsOurData?.[item.Артикул]?.sum != null) {
+                          return (
+                            <span>
+                              {new Intl.NumberFormat('ru-RU', { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(state.mpstatsOurData[item.Артикул]!.sum!)} ₽
+                            </span>
+                          );
+                        }
                         const sku = ozonItem?.sku ? String(ozonItem.sku) : null;
                         const salesData = sku ? state.salesData[sku] : null;
                         const discountPercent = state.ozonPrices[item.Артикул]?.discount_percent || 0;
                         if (salesData?.sum) {
-                          // Сумма заказа = сумма из API * (1 - соинвест)
                           const adjustedSum = salesData.sum * (1 - discountPercent);
                           const formula = `Сумма из API: ${new Intl.NumberFormat('ru-RU').format(salesData.sum)} ₽\nСоинвест: ${(discountPercent * 100).toFixed(1)}%\nФормула: ${new Intl.NumberFormat('ru-RU').format(salesData.sum)} × (1 - ${(discountPercent * 100).toFixed(1)}%) = ${new Intl.NumberFormat('ru-RU').format(adjustedSum)} ₽`;
                           return (
-                            <span
-                              title={formula}
-                              style={{cursor: 'help'}}
-                            >
+                            <span title={formula} style={{cursor: 'help'}}>
                               {new Intl.NumberFormat('ru-RU', { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(adjustedSum)} ₽
                             </span>
                           );
@@ -4001,25 +4309,30 @@ priceHistory: [{
                     <td>
                       <button
                         className={`btn btn-sm ${competitors.length > 0 ? 'btn-outline-secondary' : 'btn-outline-secondary'}`}
-                        disabled={!hasFile}
-                        title={!hasFile ? "Сначала выберите Вид Товара и загрузите Excel" : "Выбрать конкурентов"}
-                        onClick={() => handleOpenCompetitorModal(item.Артикул, competitors)}
+                        disabled={!IS_DEV_PAGE && !hasFile}
+                        title={IS_DEV_PAGE ? "Развернуть таблицу конкурентов, добавить по SKU" : (!hasFile ? "Сначала выберите Вид Товара и загрузите Excel" : "Выбрать конкурентов")}
+                        onClick={() => {
+                          if (IS_DEV_PAGE) {
+                            setState((prev: AppState) => ({
+                              ...prev,
+                              expandedProducts: { ...prev.expandedProducts, [item.Артикул]: !prev.expandedProducts[item.Артикул] }
+                            }));
+                          } else {
+                            handleOpenCompetitorModal(item.Артикул, competitors);
+                          }
+                        }}
                       >
                         {competitors.length > 0 ? (
-                          <>
-                            Конкуренты: {competitors.length}
-                          </>
+                          <>Конкуренты: {competitors.length}</>
                         ) : (
-                          <>
-                            <i className="bi bi-plus"></i> Выбрать
-                          </>
+                          <><i className="bi bi-plus"></i> {IS_DEV_PAGE ? 'Конкуренты' : 'Выбрать'}</>
                         )}
                       </button>
                     </td>
                   </tr>
                   
-{/* Строка с вложенной таблицей конкурентов */}
-{competitors.length > 0 && (
+{/* Строка с вложенной таблицей конкурентов: на DEV показываем при раскрытии или если есть конкуренты */}
+{(competitors.length > 0 || (IS_DEV_PAGE && state.expandedProducts[item.Артикул])) && (
   <tr>
     <td colSpan={8} className="p-0 border-0">
       <div className="competitors-table-container slide-down mb-4">
@@ -4069,7 +4382,8 @@ priceHistory: [{
                       //   ourDiscountPercent
                       // );
 
-                      // Проверяем, нужно ли показывать предупреждение
+                      // Проверяем, нужно ли показывать предупреждение (на DEV — наши данные из MPStats)
+                      const ourMpstats = IS_DEV_PAGE ? state.mpstatsOurData?.[item.Артикул] : null;
                       const ourParsedData = getLatestParsedPrice(state.parsedPrices, item.Артикул);
                       const ourParsedPrice = ourParsedData?.price;
                       const ourOzonItem = state.ozonData[item.Артикул];
@@ -4078,12 +4392,13 @@ priceHistory: [{
                       const ourDiscountPercent = state.ozonPrices[item.Артикул]?.discount_percent || 0;
                       const ourAdjustedSum = ourSalesData?.sum ? ourSalesData.sum * (1 - ourDiscountPercent) : 0;
 
-                      // Извлекаем числовые значения цен
-                      // Цена по Ozon Card = спарсенная цена - 10%
-                      const ourParsedPriceNum = ourParsedPrice
-                        ? parseFloat(String(ourParsedPrice).replace(/[^\d.,]/g, '').replace(',', '.')) || 0
-                        : 0;
-                      const ourPriceNum = ourParsedPriceNum * 0.9;
+                      const ourPriceNum = ourMpstats?.ozonCardPrice != null
+                        ? ourMpstats.ozonCardPrice
+                        : (ourParsedPrice
+                            ? parseFloat(String(ourParsedPrice).replace(/[^\d.,]/g, '').replace(',', '.')) * 0.9 || 0
+                            : 0);
+                      const ourQtyForWarning = ourMpstats?.qty ?? ourSalesData?.qty;
+                      const ourSumForWarning = ourMpstats?.sum ?? (ourAdjustedSum > 0 ? ourAdjustedSum : null);
                       const competitorParsedPrice = c.ozonCardPrice
                         ? parseFloat(String(c.ozonCardPrice).replace(/[^\d.,]/g, '').replace(',', '.')) || 0
                         : 0;
@@ -4093,13 +4408,10 @@ priceHistory: [{
                       const competitorQty = typeof c.qty === 'number' ? c.qty : parseFloat(String(c.qty || '0').replace(/[^\d.-]/g, '')) || 0;
                       const competitorSum = typeof c.sum === 'number' ? c.sum : parseFloat(String(c.sum || '0').replace(/[^\d.-]/g, '')) || 0;
 
-                      // Показываем предупреждение если:
-                      // - цена конкурента ниже нашей
-                      // - И (количество продаж конкурента больше ИЛИ сумма продаж больше)
                       const showWarning = ourPriceNum > 0 && competitorPriceNum > 0 &&
                         competitorPriceNum < ourPriceNum &&
-                        ((ourSalesData?.qty && competitorQty > ourSalesData.qty) ||
-                         (ourAdjustedSum > 0 && competitorSum > ourAdjustedSum));
+                        ((ourQtyForWarning != null && competitorQty > ourQtyForWarning) ||
+                         (ourSumForWarning != null && ourSumForWarning > 0 && competitorSum > ourSumForWarning));
 
                       return (
                         <tr key={`${item.Артикул}-competitor-${competitorIndex}`} className={showWarning ? 'table-danger' : ''}>
@@ -4262,6 +4574,45 @@ priceHistory: [{
                         </td>
                       </tr>
                     )}
+
+                    {/* DEV: добавление конкурента по SKU прямо в таблице */}
+                    {IS_DEV_PAGE && (
+                      <tr className="table-light">
+                        <td colSpan={7} className="py-2">
+                          <div className="d-flex align-items-center gap-2 flex-wrap">
+                            <span className="small text-muted">Добавить конкурента по SKU Ozon:</span>
+                            <input
+                              type="text"
+                              className="form-control form-control-sm"
+                              style={{ width: '140px' }}
+                              placeholder="Напр. 2790879097"
+                              value={(state.addCompetitorSkuByArticul || {})[item.Артикул] ?? ''}
+                              onChange={(e) => setState(prev => ({
+                                ...prev,
+                                addCompetitorSkuByArticul: { ...(prev.addCompetitorSkuByArticul || {}), [item.Артикул]: e.target.value }
+                              }))}
+                              onKeyDown={(e) => e.key === 'Enter' && handleAddCompetitorBySkuForProduct(item.Артикул, (state.addCompetitorSkuByArticul || {})[item.Артикул] ?? '')}
+                            />
+                            <button
+                              type="button"
+                              className="btn btn-sm btn-primary"
+                              disabled={!(state.addCompetitorSkuByArticul || {})[item.Артикул]?.trim().replace(/\D/g, '') || (state.addCompetitorLoadingByArticul || {})[item.Артикул]}
+                              onClick={(e: React.MouseEvent) => {
+                                e.stopPropagation();
+                                handleAddCompetitorBySkuForProduct(item.Артикул, (state.addCompetitorSkuByArticul || {})[item.Артикул] ?? '');
+                              }}
+                            >
+                              {(state.addCompetitorLoadingByArticul || {})[item.Артикул] ? (
+                                <><span className="spinner-border spinner-border-sm me-1" role="status"></span>Загрузка...</>
+                              ) : (
+                                <>Добавить из MPStats</>
+                              )}
+                            </button>
+                            <span className="small text-muted">Период: {mpstatsPeriod.d1} — {mpstatsPeriod.d2}</span>
+                          </div>
+                        </td>
+                      </tr>
+                    )}
                   </>
                 );
               })()}
@@ -4313,7 +4664,7 @@ priceHistory: [{
               const weightedPrice = weightedSum / totalQty;
               const recommendedPrice = weightedPrice * 0.98; // минус 2%
               return (
-                <div className="ms-3 p-3 bg-light rounded text-center" style={{minWidth: '180px'}}>
+                <div className="ms-3 p-3 bg-light rounded text-center" style={{minWidth: '180px'}} title="Σ(заказы × цена по карте) / Σ(заказы); цена по карте = спарсенная × 0,9">
                   <div className="small text-muted mb-1">Средневзвешенная</div>
                   <div className="text-muted" style={{fontSize: '0.9rem'}}>
                     {new Intl.NumberFormat('ru-RU', { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(weightedPrice)} ₽
@@ -4685,8 +5036,8 @@ priceHistory: [{
     </div>
   </div>
 )}
-      {/* Модальное окно выбора конкурентов */}
-      {state.activeModalSku && currentExtraData && (
+      {/* Модальное окно выбора конкурентов (только не-DEV; на DEV конкуренты добавляются в таблице) */}
+      {state.activeModalSku && currentExtraData && !IS_DEV_PAGE && (
         <div className="modal show d-block" style={{backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 1040}}>
           <div className="modal-dialog modal-xl modal-dialog-scrollable">
             <div className="modal-content">
@@ -4696,7 +5047,7 @@ priceHistory: [{
                 </h5>
                 <button type="button" className="btn-close" onClick={handleCloseModal}></button>
               </div>
-              
+
               <div className="p-3 border-bottom bg-light-subtle">
                 {/* Облако тегов для фильтрации */}
                 {(() => {

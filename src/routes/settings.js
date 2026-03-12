@@ -11,6 +11,7 @@ router.get('/ozon', requireAdmin, (req, res) => {
   const deepseekSettings = db.prepare('SELECT * FROM api_settings WHERE service = ?').get('deepseek');
   const youtubeSettings = db.prepare('SELECT * FROM api_settings WHERE service = ?').get('youtube');
   const forecastApiSettings = db.prepare('SELECT * FROM api_settings WHERE service = ?').get('forecast_api');
+  const mpstatsSettings = db.prepare('SELECT * FROM api_settings WHERE service = ?').get('mpstats');
 
   res.render('admin/ozon-settings', {
     title: 'Настройки интеграций',
@@ -18,6 +19,7 @@ router.get('/ozon', requireAdmin, (req, res) => {
     deepseekApiKey: deepseekSettings?.api_key || '',
     youtubeApiKey: youtubeSettings?.api_key || '',
     forecastApiKey: forecastApiSettings?.api_key || '',
+    mpstatsApiKey: mpstatsSettings?.api_key || '',
     success: req.query.success,
     error: req.query.error,
   });
@@ -142,6 +144,26 @@ router.post('/ozon/forecast-api', requireAdmin, (req, res) => {
   } catch (error) {
     console.error('Save Forecast API key error:', error);
     res.redirect('/admin/settings/ozon?error=' + encodeURIComponent('Ошибка сохранения ключа API'));
+  }
+});
+
+// POST /admin/settings/ozon/mpstats - Save MPStats API token (Регулирование цен DEV)
+router.post('/ozon/mpstats', requireAdmin, (req, res) => {
+  const { api_key } = req.body;
+
+  try {
+    const existing = db.prepare('SELECT id FROM api_settings WHERE service = ?').get('mpstats');
+    if (existing) {
+      db.prepare('UPDATE api_settings SET api_key = ?, updated_at = CURRENT_TIMESTAMP WHERE service = ?')
+        .run(api_key || '', 'mpstats');
+    } else {
+      db.prepare('INSERT INTO api_settings (service, api_key) VALUES (?, ?)')
+        .run('mpstats', api_key || '');
+    }
+    res.redirect('/admin/settings/ozon?success=' + encodeURIComponent('Токен MPStats сохранён'));
+  } catch (error) {
+    console.error('Save MPStats token error:', error);
+    res.redirect('/admin/settings/ozon?error=' + encodeURIComponent('Ошибка сохранения токена MPStats'));
   }
 });
 

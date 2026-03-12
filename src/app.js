@@ -12,6 +12,7 @@ const promoRoutes = require('./routes/promo');
 const posRoutes = require('./routes/pos');
 const pricecheckRoutes = require('./routes/pricecheck');
 const { createPricecheckRouter } = require('./routes/pricecheck');
+const pricing2Routes = require('./routes/pricing2');
 const bloggersRoutes = require('./routes/bloggers');
 const apiRoutes = require('./routes/api');
 
@@ -71,6 +72,7 @@ app.use('/admin/settings', settingsRoutes);
 app.use('/ozon', ozonRoutes);
 app.use('/promo', promoRoutes);
 app.use('/pos', posRoutes);
+app.use('/pricing2', pricing2Routes);
 app.use('/bloggers', bloggersRoutes);
 app.use('/api', apiRoutes);
 app.use('/', dashboardRoutes);
