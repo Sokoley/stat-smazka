@@ -351,9 +351,10 @@
     var html = '';
     promoOrder.forEach(function (promoTitle) {
       var block = byPromo[promoTitle];
-      var salesNum = block.sales_amount != null ? formatNum(Math.round(block.sales_amount * 0.45)) : '—';
-      var avgSalesPerSale = block.sales_amount != null && block.sales_count
-        ? block.sales_amount / block.sales_count
+      var netSales = block.sales_amount != null ? block.sales_amount * 0.45 : 0;
+      var salesNum = block.sales_amount != null ? formatNum(Math.round(netSales)) : '—';
+      var avgSalesPerSale = netSales > 0 && block.sales_count
+        ? netSales / block.sales_count
         : 0;
       var deferredSum = 0;
       var costSum = 0;
@@ -367,7 +368,7 @@
           if (Number.isFinite(costNum) && costNum > 0) costSum += costNum;
         });
       }
-      var efficiency = costSum > 0 ? (block.sales_amount + deferredSum) / costSum : null;
+      var efficiency = costSum > 0 ? (netSales + deferredSum) / costSum : null;
       var efficiencyDisplay = efficiency && Number.isFinite(efficiency) ? efficiency.toFixed(2) : '—';
       html += '<div class="analytics-promo-section" data-promo="' + promoTitle.replace(/"/g, '&quot;') + '">';
       html += '<div class="analytics-promo-header"><span>' + promoTitle.replace(/</g, '&lt;') + '</span><span class="analytics-promo-metrics"><span class="analytics-promo-sales">Продажи: ' + salesNum + ' ₽</span><span>Коэффициент эффективности: ' + efficiencyDisplay + '</span><button type="button" class="analytics-detail-btn" data-promo="' + promoTitle.replace(/"/g, '&quot;').replace(/</g, '&lt;') + '">Показать детализацию</button></span></div>';
@@ -484,7 +485,7 @@
       if (!key) return;
       var price = typeof row.price === 'number' ? row.price : parseFloat(row.price);
       if (!Number.isFinite(price)) return;
-      byDay[key] = (byDay[key] || 0) + price;
+      byDay[key] = (byDay[key] || 0) + price * 0.45;
     });
     var y = parseInt(year, 10);
     var m = parseInt(month, 10);
