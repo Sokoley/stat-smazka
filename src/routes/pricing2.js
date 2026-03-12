@@ -112,8 +112,10 @@ router.post('/api/ozon-products', requireAuth, async (req, res) => {
 });
 
 // Период по умолчанию: последние 7 дней
+// 7 дней без учёта сегодня: вчера и 6 дней до него
 function getDefaultPeriod() {
   const end = new Date();
+  end.setDate(end.getDate() - 1);
   const start = new Date(end);
   start.setDate(start.getDate() - 6);
   return {
@@ -124,7 +126,7 @@ function getDefaultPeriod() {
 
 // POST - данные MPStats: цена по OZON карте (за последний день с данными), продажи за период
 // GET oz/get/item/{sku}/sales?d1=YYYY-MM-DD&d2=YYYY-MM-DD
-// Body: { skus: [123, 456], d1?: "YYYY-MM-DD", d2?: "YYYY-MM-DD" }. По умолчанию — последние 7 дней.
+// Body: { skus: [123, 456], d1?: "YYYY-MM-DD", d2?: "YYYY-MM-DD" }. По умолчанию — 7 дней без сегодня (вчера и 6 дней до него).
 // Ответ: { items: { "123": { ozon_card_price: 3835, sales: 10, sales_rub: 44990 }, ... } }
 // sales_rub — сумма по дням (final_price * sales)
 router.post('/api/mpstats-sales', requireAuth, async (req, res) => {
