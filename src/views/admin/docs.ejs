@@ -44,9 +44,10 @@
         <a href="#coinvest" class="text-blue-300 hover:text-blue-200 transition-colors">6. Модуль "Соинвест"</a>
         <a href="#forecast" class="text-blue-300 hover:text-blue-200 transition-colors">7. Модуль "Прогнозная потребность"</a>
         <a href="#supplies" class="text-blue-300 hover:text-blue-200 transition-colors">8. Модуль "Поставки"</a>
-        <a href="#formulas" class="text-blue-300 hover:text-blue-200 transition-colors">9. Формулы расчётов</a>
-        <a href="#api-endpoints" class="text-blue-300 hover:text-blue-200 transition-colors">10. API Endpoints</a>
-        <a href="#setup" class="text-blue-300 hover:text-blue-200 transition-colors">11. Установка и настройка</a>
+        <a href="#bloggers" class="text-blue-300 hover:text-blue-200 transition-colors">9. Модуль "Блогеры"</a>
+        <a href="#formulas" class="text-blue-300 hover:text-blue-200 transition-colors">10. Формулы расчётов</a>
+        <a href="#api-endpoints" class="text-blue-300 hover:text-blue-200 transition-colors">11. API Endpoints</a>
+        <a href="#setup" class="text-blue-300 hover:text-blue-200 transition-colors">12. Установка и настройка</a>
       </nav>
     </div>
 
@@ -66,6 +67,7 @@
           <li>Управлять несколькими аккаунтами OZON</li>
           <li>Экспортировать данные в Excel</li>
           <li>Работать с заявками на поставку OZON по всем активным аккаунтам</li>
+          <li>Оценивать эффективность интеграций с блогерами (промокоды OZON, просмотры, продажи −55%)</li>
         </ul>
         <div class="mt-4 p-3 glass rounded-lg text-sm">
           <strong class="text-white">Примечание:</strong> Система поддерживает работу с несколькими аккаунтами OZON одновременно.
@@ -456,9 +458,53 @@
       </div>
     </div>
 
-    <!-- 9. Formulas -->
+    <!-- 9. Bloggers -->
+    <div id="bloggers" class="glass-card p-6">
+      <h3 class="text-lg font-semibold text-white mb-4">9. Модуль "Блогеры"</h3>
+      <div class="space-y-4 text-white/85">
+        <p>
+          Модуль оценивает эффективность интеграций с блогерами: YouTube-ролики с промокодом OZON,
+          просмотры и стоимость интеграции. Позволяет вести учёт роликов по промокодам и считать
+          продажи по акциям за выбранный месяц.
+        </p>
+
+        <h4 class="font-medium text-white">Назначение:</h4>
+        <ul class="list-disc pl-6 space-y-1">
+          <li><strong class="text-white">Добавление интеграций</strong> — ссылка на YouTube-ролик, выбор промокода OZON, стоимость интеграции</li>
+          <li><strong class="text-white">Период</strong> — месяц/год: от него зависят список роликов (дата выхода), отчёт продаж OZON и продажи по акциям</li>
+          <li><strong class="text-white">Аналитика по промокодам</strong> — таблица: промокод, продажи, коэффициент эффективности, детализация по дням (график)</li>
+          <li><strong class="text-white">Просмотры</strong> — обновление просмотров/лайков/комментариев через YouTube Data API (опционально)</li>
+        </ul>
+
+        <h4 class="font-medium text-white mt-4">Источник данных по продажам:</h4>
+        <p class="text-sm">
+          Отчёт FBO-отправлений OZON за выбранный месяц (<code class="bg-white/10 px-1 rounded">/v1/report/postings/create</code> + выгрузка CSV).
+          В отчёте используются колонки: <strong class="text-white">«Ваша цена»</strong> (сумма продажи),
+          <strong class="text-white">«Акции» / «Акция / Промокод»</strong> (название акции), <strong class="text-white">«Принят в обработку»</strong> (дата).
+          Продажи по каждому промокоду суммируются и сохраняются; детализация по дням — для графика в модальном окне.
+        </p>
+
+        <h4 class="font-medium text-white mt-4">Расчёт показателей (продажи −55%):</h4>
+        <p class="text-sm">
+          Все денежные показатели по продажам считаются от <strong class="text-white">чистых продаж</strong>: сумма из отчёта OZON × 0,45 (т.е. продажи минус 55%).
+        </p>
+        <ul class="list-disc pl-6 space-y-1 text-sm">
+          <li><strong class="text-white">Продажи</strong> — сумма по промокоду × 0,45</li>
+          <li><strong class="text-white">Коэффициент эффективности</strong> — (чистые продажи + отложенные продажи) / сумма стоимости интеграций</li>
+          <li><strong class="text-white">Отложенные продажи</strong> — оценка от просмотров (средняя выручка с продажи × 0,0001 × просмотры), также от чистых продаж</li>
+          <li><strong class="text-white">График детализации</strong> — по дням месяца отображаются суммы (цена × 0,45) по выбранному промокоду</li>
+        </ul>
+
+        <h4 class="font-medium text-white mt-4">Настройки:</h4>
+        <p class="text-sm">
+          В разделе <strong class="text-white">Интеграции</strong> (админка) нужно указать API-ключ YouTube Data API v3 — для подтягивания просмотров, лайков и комментариев по роликам.
+        </p>
+      </div>
+    </div>
+
+    <!-- 10. Formulas -->
     <div id="formulas" class="glass-card p-6">
-      <h3 class="text-lg font-semibold text-white mb-4">9. Формулы расчётов</h3>
+      <h3 class="text-lg font-semibold text-white mb-4">10. Формулы расчётов</h3>
       <div class="space-y-6 text-white/85">
 
         <div class="p-4 glass rounded-lg">
@@ -509,9 +555,9 @@
       </div>
     </div>
 
-    <!-- 10. API Endpoints -->
+    <!-- 11. API Endpoints -->
     <div id="api-endpoints" class="glass-card p-6">
-      <h3 class="text-lg font-semibold text-white mb-4">10. API Endpoints приложения</h3>
+      <h3 class="text-lg font-semibold text-white mb-4">11. API Endpoints приложения</h3>
       <div class="space-y-4">
 
         <h4 class="font-medium text-white">Авторизация</h4>
@@ -562,6 +608,40 @@
           </div>
         </div>
 
+        <h4 class="font-medium text-white mt-4">Блогеры</h4>
+        <div class="space-y-2 text-sm">
+          <div class="flex items-center gap-2 p-2 glass rounded">
+            <span class="px-2 py-0.5 text-xs font-medium bg-blue-500/30 text-blue-200 rounded border border-blue-400/30">GET</span>
+            <code class="text-purple-300">/bloggers</code>
+            <span class="text-white/60">— Страница «Блогеры»</span>
+          </div>
+          <div class="flex items-center gap-2 p-2 glass rounded">
+            <span class="px-2 py-0.5 text-xs font-medium bg-green-500/30 text-green-200 rounded border border-green-400/30">GET</span>
+            <code class="text-purple-300">/bloggers/api/integrations</code>
+            <span class="text-white/60">— Список интеграций (year, month, refresh_views — опционально)</span>
+          </div>
+          <div class="flex items-center gap-2 p-2 glass rounded">
+            <span class="px-2 py-0.5 text-xs font-medium bg-green-500/30 text-green-200 rounded border border-green-400/30">GET</span>
+            <code class="text-purple-300">/bloggers/api/sales/details</code>
+            <span class="text-white/60">— Детализация покупок по промокоду (year, month, promo) для графика</span>
+          </div>
+          <div class="flex items-center gap-2 p-2 glass rounded">
+            <span class="px-2 py-0.5 text-xs font-medium bg-yellow-500/30 text-yellow-200 rounded border border-yellow-400/30">POST</span>
+            <code class="text-purple-300">/bloggers/api/integrations</code>
+            <span class="text-white/60">— Добавить интеграцию (url, action_id, ozon_action_title, integration_cost)</span>
+          </div>
+          <div class="flex items-center gap-2 p-2 glass rounded">
+            <span class="px-2 py-0.5 text-xs font-medium bg-yellow-500/30 text-yellow-200 rounded border border-yellow-400/30">PATCH</span>
+            <code class="text-purple-300">/bloggers/api/integrations/:id</code>
+            <span class="text-white/60">— Редактировать интеграцию</span>
+          </div>
+          <div class="flex items-center gap-2 p-2 glass rounded">
+            <span class="px-2 py-0.5 text-xs font-medium bg-red-500/30 text-red-200 rounded border border-red-400/30">DELETE</span>
+            <code class="text-purple-300">/bloggers/api/integrations/:id</code>
+            <span class="text-white/60">— Удалить интеграцию</span>
+          </div>
+        </div>
+
         <h4 class="font-medium text-white mt-4">Внешний API отчёта «Прогнозная потребность» (по API-ключу)</h4>
         <p class="text-sm text-white/70 mb-2">Доступ по ключу: заголовок <code class="text-xs">X-API-Key</code> или <code class="text-xs">Authorization: Bearer &lt;key&gt;</code>, либо <code class="text-xs">?api_key=&lt;key&gt;</code>. Ключ задаётся в настройках интеграций.</p>
         <div class="space-y-2 text-sm">
@@ -600,7 +680,7 @@
 
     <!-- 11. Setup -->
     <div id="setup" class="glass-card p-6">
-      <h3 class="text-lg font-semibold text-white mb-4">11. Установка и настройка</h3>
+      <h3 class="text-lg font-semibold text-white mb-4">12. Установка и настройка</h3>
       <div class="space-y-6 text-white/85">
 
         <div>
