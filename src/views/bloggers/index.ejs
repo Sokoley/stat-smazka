@@ -64,8 +64,8 @@
   .bloggers-table .video-cell a:hover { text-decoration: underline; }
   .bloggers-table .num { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
   .bloggers-table .cost { text-align: right; font-variant-numeric: tabular-nums; }
-  .bloggers-table tr.bloggers-total-row td { font-weight: 600; background: #eff6ff; border-top: 2px solid #3b82f6; }
-  .dark .bloggers-table tr.bloggers-total-row td { background: #1e3a8a; border-top-color: #60a5fa; }
+  .bloggers-table tr.bloggers-total-row td { font-weight: 600; background: #f3f4f6; }
+  .dark .bloggers-table tr.bloggers-total-row td { background: #374151; }
   .bloggers-totals-all { margin-top: 1rem; padding: 1rem 1.25rem; background: #eff6ff; border: 1px solid #93c5fd; border-radius: 0.75rem; font-size: 0.9375rem; }
   .dark .bloggers-totals-all { background: #1e3a8a; border-color: #2563eb; }
   .bloggers-totals-all strong { color: #1e40af; }
@@ -358,6 +358,7 @@
     var totalViewsAll = 0;
     var totalDeferredAll = 0;
     var totalCostAll = 0;
+    var totalNetSalesAll = 0;
     promoOrder.forEach(function (promoTitle) {
       var block = byPromo[promoTitle];
       var netSales = block.sales_amount != null ? block.sales_amount * 0.45 : 0;
@@ -382,11 +383,11 @@
       totalViewsAll += viewsSum;
       totalDeferredAll += deferredSum;
       totalCostAll += costSum;
+      totalNetSalesAll += netSales;
       var efficiency = costSum > 0 ? (netSales + deferredSum) / costSum : null;
       var efficiencyDisplay = efficiency && Number.isFinite(efficiency) ? efficiency.toFixed(2) : '—';
-      var promoSummary = 'Просмотры: ' + formatNum(viewsSum) + ' · Отложенные продажи: ' + (deferredSum > 0 ? formatNum(Math.round(deferredSum)) + ' ₽' : '—') + ' · Стоимость: ' + (costSum > 0 ? formatNum(Math.round(costSum)) + ' ₽' : '—');
       html += '<div class="analytics-promo-section" data-promo="' + promoTitle.replace(/"/g, '&quot;') + '">';
-      html += '<div class="analytics-promo-header"><span>' + promoTitle.replace(/</g, '&lt;') + '</span><span class="analytics-promo-metrics"><span class="analytics-promo-sales">Продажи: ' + salesNum + ' ₽</span><span>' + promoSummary + '</span><span>Коэффициент эффективности: ' + efficiencyDisplay + '</span><button type="button" class="analytics-detail-btn" data-promo="' + promoTitle.replace(/"/g, '&quot;').replace(/</g, '&lt;') + '">Показать детализацию</button></span></div>';
+      html += '<div class="analytics-promo-header"><span>' + promoTitle.replace(/</g, '&lt;') + '</span><span class="analytics-promo-metrics"><span class="analytics-promo-sales">Продажи: ' + salesNum + ' ₽</span><span>Коэффициент эффективности: ' + efficiencyDisplay + '</span><button type="button" class="analytics-detail-btn" data-promo="' + promoTitle.replace(/"/g, '&quot;').replace(/</g, '&lt;') + '">Показать детализацию</button></span></div>';
       if (!block.integrations || block.integrations.length === 0) {
         html += '<div class="analytics-no-integrations">Нет интеграций за этот период</div>';
       } else {
@@ -412,7 +413,8 @@
       }
       html += '</div>';
     });
-    html += '<div class="bloggers-totals-all"><strong>Итого по всем промокодам:</strong> Просмотры: ' + formatNum(totalViewsAll) + ' · Отложенные продажи: ' + (totalDeferredAll > 0 ? formatNum(Math.round(totalDeferredAll)) + ' ₽' : '—') + ' · Стоимость: ' + (totalCostAll > 0 ? formatNum(Math.round(totalCostAll)) + ' ₽' : '—') + '</div>';
+    var totalSalesStr = totalNetSalesAll > 0 ? formatNum(Math.round(totalNetSalesAll)) + ' ₽' : '—';
+    html += '<div class="bloggers-totals-all"><strong>Итого по всем промокодам:</strong> Продажи: ' + totalSalesStr + ' · Просмотры: ' + formatNum(totalViewsAll) + ' · Отложенные продажи: ' + (totalDeferredAll > 0 ? formatNum(Math.round(totalDeferredAll)) + ' ₽' : '—') + ' · Стоимость: ' + (totalCostAll > 0 ? formatNum(Math.round(totalCostAll)) + ' ₽' : '—') + '</div>';
 
     if (promoOrder.length === 0) {
       analyticsContainer.innerHTML = '<p class="bloggers-placeholder">Нет данных за выбранный период. Добавьте интеграции и/или сформируйте отчёт продаж.</p>';
