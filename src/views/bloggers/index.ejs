@@ -351,7 +351,7 @@
     var html = '';
     promoOrder.forEach(function (promoTitle) {
       var block = byPromo[promoTitle];
-      var salesNum = block.sales_amount != null ? formatNum(block.sales_amount) : '—';
+      var salesNum = block.sales_amount != null ? formatNum(Math.round(block.sales_amount * 0.45)) : '—';
       var avgSalesPerSale = block.sales_amount != null && block.sales_count
         ? block.sales_amount / block.sales_count
         : 0;
