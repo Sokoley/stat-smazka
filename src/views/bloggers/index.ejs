@@ -414,7 +414,9 @@
       html += '</div>';
     });
     var totalSalesStr = totalNetSalesAll > 0 ? formatNum(Math.round(totalNetSalesAll)) + ' ₽' : '—';
-    html += '<div class="bloggers-totals-all"><strong>Итого по всем промокодам:</strong> Продажи: ' + totalSalesStr + ' · Просмотры: ' + formatNum(totalViewsAll) + ' · Отложенные продажи: ' + (totalDeferredAll > 0 ? formatNum(Math.round(totalDeferredAll)) + ' ₽' : '—') + ' · Стоимость: ' + (totalCostAll > 0 ? formatNum(Math.round(totalCostAll)) + ' ₽' : '—') + '</div>';
+    var efficiencyAll = totalCostAll > 0 ? (totalNetSalesAll + totalDeferredAll) / totalCostAll : null;
+    var efficiencyAllDisplay = efficiencyAll != null && Number.isFinite(efficiencyAll) ? efficiencyAll.toFixed(2) : '—';
+    html += '<div class="bloggers-totals-all"><strong>Итого по всем промокодам:</strong> Продажи: ' + totalSalesStr + ' · Просмотры: ' + formatNum(totalViewsAll) + ' · Отложенные продажи: ' + (totalDeferredAll > 0 ? formatNum(Math.round(totalDeferredAll)) + ' ₽' : '—') + ' · Стоимость: ' + (totalCostAll > 0 ? formatNum(Math.round(totalCostAll)) + ' ₽' : '—') + ' · Коэффициент эффективности: ' + efficiencyAllDisplay + '</div>';
 
     if (promoOrder.length === 0) {
       analyticsContainer.innerHTML = '<p class="bloggers-placeholder">Нет данных за выбранный период. Добавьте интеграции и/или сформируйте отчёт продаж.</p>';
